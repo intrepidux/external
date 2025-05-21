@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dgii_order,access_dgii_order_ncf_temp,model_itx_fe_dgii,base.group_system,1,1,1,1
+access_tipopagos_dgii,access_l10n_do_dgii_fe_base,model_tipopago_dgii,base.group_system,1,1,1,1
+access_dgii_order_new,access_dgii_order_ncf_temp,model_itx_fe_dgii,base.group_user,1,0,1,1
+access_dgii_order_xml_new,access_dgii_order_ncf_temp,model_itx_xml_data_dgii,base.group_user,1,1,1,1
+access_tipopagos_dgii_new,access_l10n_do_dgii_fe_base,model_tipopago_dgii,base.group_user,1,0,1,1
+access_dgii_xml_preview_wizard,access_dgii_xml_preview_wizard,model_dgii_xml_preview_wizard,base.group_user,1,1,1,1
+access_res_municipality_user,access_res_municipality_user,l10n_do_dgii_fe_base.model_res_municipality,base.group_user,1,1,1,1

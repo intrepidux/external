@@ -1,0 +1,551 @@
+id,name,ecf_code,country_id/id,state_id/id
+municipality_010100,MUNICIPIO SANTO DOMINGO DE GUZMÁN,010100,base.do,base.state_DO_01
+municipality_010101,SANTO DOMINGO DE GUZMÁN (D. M.).,010101,base.do,base.state_DO_01
+municipality_020100,MUNICIPIO AZUA,020100,base.do,base.state_DO_02
+municipality_020101,AZUA (D. M.).,020101,base.do,base.state_DO_02
+municipality_020102,BARRO ARRIBA (D. M.).,020102,base.do,base.state_DO_02
+municipality_020103,LAS BARÁAS-LA ESTANCIA (D. M.).,020103,base.do,base.state_DO_02
+municipality_020104,LOS JOVILLOS (D. M.).,020104,base.do,base.state_DO_02
+municipality_020105,PUERTO VIEJO (D. M.).,020105,base.do,base.state_DO_02
+municipality_020106,BARRERAS (D. M.).,020106,base.do,base.state_DO_02
+municipality_020107,DOÁA EMMA BALAGUER VIUDA VALLEJO (D. M.).,020107,base.do,base.state_DO_02
+municipality_020108,CLAVELLINA (D. M.).,020108,base.do,base.state_DO_02
+municipality_020109,LAS LOMAS (D. M.).,020109,base.do,base.state_DO_02
+municipality_020200,MUNICIPIO LAS CHARCAS,020200,base.do,base.state_DO_02
+municipality_020201,LAS CHARCAS (D. M.).,020201,base.do,base.state_DO_02
+municipality_020202,PALMAR DE OCOA (D. M.).,020202,base.do,base.state_DO_02
+municipality_020300,MUNICIPIO LAS YAYAS DE VIAJAMA,020300,base.do,base.state_DO_02
+municipality_020301,LAS YAYAS DE VIAJAMA (D. M.).,020301,base.do,base.state_DO_02
+municipality_020302,VILLARPANDO (D. M.).,020302,base.do,base.state_DO_02
+municipality_020303,HATO NUEVO CORTÁS (D. M.).,020303,base.do,base.state_DO_02
+municipality_020400,MUNICIPIO PADRE LAS CASAS,020400,base.do,base.state_DO_02
+municipality_020401,PADRE LAS CASAS (D. M.).,020401,base.do,base.state_DO_02
+municipality_020402,LAS LAGUNAS (D. M.).,020402,base.do,base.state_DO_02
+municipality_020403,LA SIEMBRA (D. M.).,020403,base.do,base.state_DO_02
+municipality_020404,MONTE BONITO (D. M.).,020404,base.do,base.state_DO_02
+municipality_020405,LOS FRÁOS (D. M.).,020405,base.do,base.state_DO_02
+municipality_020500,MUNICIPIO PERALTA,020500,base.do,base.state_DO_02
+municipality_020501,PERALTA (D. M.).,020501,base.do,base.state_DO_02
+municipality_020600,MUNICIPIO SABANA YEGUA,020600,base.do,base.state_DO_02
+municipality_020601,SABANA YEGUA (D. M.).,020601,base.do,base.state_DO_02
+municipality_020602,PROYECTO 4 (D. M.).,020602,base.do,base.state_DO_02
+municipality_020603,GANADERO (D. M.).,020603,base.do,base.state_DO_02
+municipality_020604,PROYECTO 2-C (D. M.).,020604,base.do,base.state_DO_02
+municipality_020700,MUNICIPIO PUEBLO VIEJO,020700,base.do,base.state_DO_02
+municipality_020701,PUEBLO VIEJO (D. M.).,020701,base.do,base.state_DO_02
+municipality_020702,EL ROSARIO (D. M.).,020702,base.do,base.state_DO_02
+municipality_020800,MUNICIPIO TÁBARA ARRIBA,020800,base.do,base.state_DO_02
+municipality_020801,TÁBARA ARRIBA (D. M.).,020801,base.do,base.state_DO_02
+municipality_020802,TÁBARA ABAJO (D. M.).,020802,base.do,base.state_DO_02
+municipality_020803,AMIAMA GÁMEZ (D. M.).,020803,base.do,base.state_DO_02
+municipality_020804,LOS TOROS (D. M.).,020804,base.do,base.state_DO_02
+municipality_020900,MUNICIPIO GUAYABAL,020900,base.do,base.state_DO_02
+municipality_020901,GUAYABAL (D. M.).,020901,base.do,base.state_DO_02
+municipality_021000,MUNICIPIO ESTEBANÁA,021000,base.do,base.state_DO_02
+municipality_021001,ESTEBANÁA (D. M.).,021001,base.do,base.state_DO_02
+municipality_030001,MUNICIPIO NEIBA,030001,base.do,base.state_DO_03
+municipality_030101,NEIBA (D. M.).,030101,base.do,base.state_DO_03
+municipality_030102,EL PALMAR  (D. M.).,030102,base.do,base.state_DO_03
+municipality_030200,MUNICIPIO GALVÁN,030200,base.do,base.state_DO_03
+municipality_030201,GALVÁN (D. M.).,030201,base.do,base.state_DO_03
+municipality_030202,EL SALADO (D. M.).,030202,base.do,base.state_DO_03
+municipality_030300,MUNICIPIO TAMAYO,030300,base.do,base.state_DO_03
+municipality_030301,TAMAYO (D. M.).,030301,base.do,base.state_DO_03
+municipality_030302,UVILLA (D. M.).,030302,base.do,base.state_DO_03
+municipality_030303,SANTANA (D. M.).,030303,base.do,base.state_DO_03
+municipality_030304,MONSERRATE (MONTSERRAT) (D. M.).,030304,base.do,base.state_DO_03
+municipality_030305,CABEZA DE TORO (D. M.).,030305,base.do,base.state_DO_03
+municipality_030306,MENA (D. M.).,030306,base.do,base.state_DO_03
+municipality_030307,SANTA BÁRBARA EL 6 (D. M.).,030307,base.do,base.state_DO_03
+municipality_030400,MUNICIPIO VILLA JARAGUA,030400,base.do,base.state_DO_03
+municipality_030401,VILLA JARAGUA (D. M.).,030401,base.do,base.state_DO_03
+municipality_030500,MUNICIPIO LOS RÁOS,030500,base.do,base.state_DO_03
+municipality_030501,LOS RÁOS (D. M.).,030501,base.do,base.state_DO_03
+municipality_030502,LAS CLAVELLINAS (D. M.).,030502,base.do,base.state_DO_03
+municipality_040100,MUNICIPIO BARAHONA,040100,base.do,base.state_DO_04
+municipality_040101,BARAHONA (D. M.).,040101,base.do,base.state_DO_04
+municipality_040102,EL CACHÁN (D. M.).,040102,base.do,base.state_DO_04
+municipality_040103,LA GUÁZARA (D. M.).,040103,base.do,base.state_DO_04
+municipality_040104,VILLA CENTRAL (D. M.).,040104,base.do,base.state_DO_04
+municipality_040200,MUNICIPIO CABRAL,040200,base.do,base.state_DO_04
+municipality_040201,CABRAL (D. M.).,040201,base.do,base.state_DO_04
+municipality_040300,MUNICIPIO ENRIQUILLO,040300,base.do,base.state_DO_04
+municipality_040301,ENRIQUILLO (D. M.).,040301,base.do,base.state_DO_04
+municipality_040302,ARROYO DULCE (D. M.).,040302,base.do,base.state_DO_04
+municipality_040400,MUNICIPIO PARAÁSO,040400,base.do,base.state_DO_04
+municipality_040401,PARAÁSO (D. M.).,040401,base.do,base.state_DO_04
+municipality_040402,LOS PATOS (D. M.).,040402,base.do,base.state_DO_04
+municipality_040500,MUNICIPIO VICENTE NOBLE,040500,base.do,base.state_DO_04
+municipality_040501,VICENTE NOBLE (D. M.).,040501,base.do,base.state_DO_04
+municipality_040502,CANOA (D. M.).,040502,base.do,base.state_DO_04
+municipality_040503,QUITA CORAZA (D. M.).,040503,base.do,base.state_DO_04
+municipality_040504,FONDO NEGRO (D. M.).,040504,base.do,base.state_DO_04
+municipality_040600,MUNICIPIO EL PEÁÁN,040600,base.do,base.state_DO_04
+municipality_040601,EL PEÁÁN (D. M.).,040601,base.do,base.state_DO_04
+municipality_040700,MUNICIPIO LA CIÁNAGA,040700,base.do,base.state_DO_04
+municipality_040701,LA CIÁNAGA (D. M.).,040701,base.do,base.state_DO_04
+municipality_040702,BAHORUCO (D. M.).,040702,base.do,base.state_DO_04
+municipality_040800,MUNICIPIO FUNDACIÁN,040800,base.do,base.state_DO_04
+municipality_040801,FUNDACIÁN (D. M.).,040801,base.do,base.state_DO_04
+municipality_040802,PESCADERÁA (D. M.).,040802,base.do,base.state_DO_04
+municipality_040900,MUNICIPIO LAS SALINAS,040900,base.do,base.state_DO_04
+municipality_040901,LAS SALINAS (D. M.).,040901,base.do,base.state_DO_04
+municipality_041000,MUNICIPIO POLO,041000,base.do,base.state_DO_04
+municipality_041001,POLO (D. M.).,041001,base.do,base.state_DO_04
+municipality_041100,MUNICIPIO JAQUIMEYES,041100,base.do,base.state_DO_04
+municipality_041101,JAQUIMEYES (D. M.).,041101,base.do,base.state_DO_04
+municipality_041102,PALO ALTO (D. M.).,041102,base.do,base.state_DO_04
+municipality_050100,MUNICIPIO DAJABÁN,050100,base.do,base.state_DO_05
+municipality_050101,DAJABÁN (D. M.).,050101,base.do,base.state_DO_05
+municipality_050102,CAÁONGO (D. M.).,050102,base.do,base.state_DO_05
+municipality_050200,MUNICIPIO LOMA DE CABRERA,050200,base.do,base.state_DO_05
+municipality_050201,LOMA DE CABRERA (D. M.).,050201,base.do,base.state_DO_05
+municipality_050202,CAPOTILLO (D. M.).,050202,base.do,base.state_DO_05
+municipality_050203,SANTIAGO DE LA CRUZ (D. M.).,050203,base.do,base.state_DO_05
+municipality_050300,MUNICIPIO PARTIDO,050300,base.do,base.state_DO_05
+municipality_050301,PARTIDO (D. M.).,050301,base.do,base.state_DO_05
+municipality_050400,MUNICIPIO RESTAURACIÁN,050400,base.do,base.state_DO_05
+municipality_050401,RESTAURACIÁN (D. M.).,050401,base.do,base.state_DO_05
+municipality_050500,MUNICIPIO EL PINO,050500,base.do,base.state_DO_05
+municipality_050501,EL PINO (D. M.).,050501,base.do,base.state_DO_05
+municipality_050502,MANUEL BUENO (D. M.).,050502,base.do,base.state_DO_05
+municipality_060100,MUNICIPIO SAN FRANCISCO DE MACORÁS,060100,base.do,base.state_DO_06
+municipality_060101,SAN FRANCISCO DE MACORÁS (D. M.).,060101,base.do,base.state_DO_06
+municipality_060102,LA PEÁA (D. M.).,060102,base.do,base.state_DO_06
+municipality_060103,CENOVÁ (D. M.).,060103,base.do,base.state_DO_06
+municipality_060104,JAYA (D. M.).,060104,base.do,base.state_DO_06
+municipality_060105,PRESIDENTE DON ANTONIO GUZMÁN FERNÁNDEZ (D. M.).,060105,base.do,base.state_DO_06
+municipality_060200,MUNICIPIO ARENOSO,060200,base.do,base.state_DO_06
+municipality_060201,ARENOSO (D. M.).,060201,base.do,base.state_DO_06
+municipality_060202,LAS COLES (D. M.).,060202,base.do,base.state_DO_06
+municipality_060203,EL AGUACATE (D. M.).,060203,base.do,base.state_DO_06
+municipality_060300,MUNICIPIO CASTILLO,060300,base.do,base.state_DO_06
+municipality_060301,CASTILLO (D. M.).,060301,base.do,base.state_DO_06
+municipality_060400,MUNICIPIO PIMENTEL,060400,base.do,base.state_DO_06
+municipality_060401,PIMENTEL (D. M.).,060401,base.do,base.state_DO_06
+municipality_060500,MUNICIPIO VILLA RIVA,060500,base.do,base.state_DO_06
+municipality_060501,VILLA RIVA (D. M.).,060501,base.do,base.state_DO_06
+municipality_060502,AGUA SANTA DEL YUNA  (D. M.).,060502,base.do,base.state_DO_06
+municipality_060503,CRISTO REY DE GUARAGUAO (D. M.).,060503,base.do,base.state_DO_06
+municipality_060504,LAS TARANAS (D. M.).,060504,base.do,base.state_DO_06
+municipality_060505,BARRAQUITO (D. M.).,060505,base.do,base.state_DO_06
+municipality_060600,MUNICIPIO LAS GUÁRANAS,060600,base.do,base.state_DO_06
+municipality_060601,LAS GUÁRANAS (D. M.).,060601,base.do,base.state_DO_06
+municipality_060700,MUNICIPIO EUGENIO MARÁA DE HOSTOS,060700,base.do,base.state_DO_06
+municipality_060701,EUGENIO MARÁA DE HOSTOS (D. M.).,060701,base.do,base.state_DO_06
+municipality_060702,SABANA GRANDE (D. M.).,060702,base.do,base.state_DO_06
+municipality_070100,MUNICIPIO COMENDADOR,070100,base.do,base.state_DO_07
+municipality_070101,COMENDADOR (D. M.).,070101,base.do,base.state_DO_07
+municipality_070102,SABANA LARGA (D. M.).,070102,base.do,base.state_DO_07
+municipality_070103,GUAYABO  (D. M.).,070103,base.do,base.state_DO_07
+municipality_070200,MUNICIPIO BÁNICA,070200,base.do,base.state_DO_07
+municipality_070201,BÁNICA (D. M.).,070201,base.do,base.state_DO_07
+municipality_070202,SABANA CRUZ (D. M.).,070202,base.do,base.state_DO_07
+municipality_070203,SABANA HIGÁERO (D. M.).,070203,base.do,base.state_DO_07
+municipality_070300,MUNICIPIO EL LLANO,070300,base.do,base.state_DO_07
+municipality_070301,EL LLANO (D. M.).,070301,base.do,base.state_DO_07
+municipality_070302,GUANITO (D. M.).,070302,base.do,base.state_DO_07
+municipality_070400,MUNICIPIO HONDO VALLE,070400,base.do,base.state_DO_07
+municipality_070401,HONDO VALLE (D. M.).,070401,base.do,base.state_DO_07
+municipality_070402,RANCHO DE LA GUARDIA (D. M.).,070402,base.do,base.state_DO_07
+municipality_070500,MUNICIPIO PEDRO SANTANA,070500,base.do,base.state_DO_07
+municipality_070501,PEDRO SANTANA (D. M.).,070501,base.do,base.state_DO_07
+municipality_070502,RÁO LIMPIO (D. M.).,070502,base.do,base.state_DO_07
+municipality_070600,MUNICIPIO JUAN SANTIAGO,070600,base.do,base.state_DO_07
+municipality_070601,JUAN SANTIAGO (D. M.).,070601,base.do,base.state_DO_07
+municipality_080100,MUNICIPIO EL SEIBO,080100,base.do,base.state_DO_08
+municipality_080101,EL SEIBO (D. M.).,080101,base.do,base.state_DO_08
+municipality_080102,PEDRO SÁNCHEZ (D. M.).,080102,base.do,base.state_DO_08
+municipality_080103,SAN FRANCISCO-VICENTILLO (D. M.).,080103,base.do,base.state_DO_08
+municipality_080104,SANTA LUCÁA (D. M.).,080104,base.do,base.state_DO_08
+municipality_080200,MUNICIPIO MICHES,080200,base.do,base.state_DO_08
+municipality_080201,MICHES (D. M.).,080201,base.do,base.state_DO_08
+municipality_080202,EL CEDRO (D. M.).,080202,base.do,base.state_DO_08
+municipality_080203,LA GINA (D. M.).,080203,base.do,base.state_DO_08
+municipality_090100,MUNICIPIO MOCA,090100,base.do,base.state_DO_09
+municipality_090101,MOCA (D. M.).,090101,base.do,base.state_DO_09
+municipality_090102,JOSÁ CONTRERAS (D. M.).,090102,base.do,base.state_DO_09
+municipality_090103,SAN VÁCTOR (D. M.).,090103,base.do,base.state_DO_09
+municipality_090104,JUAN LÁPEZ (D. M.).,090104,base.do,base.state_DO_09
+municipality_090105,LAS LAGUNAS (D. M.).,090105,base.do,base.state_DO_09
+municipality_090106,CANCA LA REYNA  (D. M.).,090106,base.do,base.state_DO_09
+municipality_090107,EL HIGÁERITO (D. M.).,090107,base.do,base.state_DO_09
+municipality_090108,MONTE DE LA JAGUA (D. M.).,090108,base.do,base.state_DO_09
+municipality_090109,LA ORTEGA (D. M.).,090109,base.do,base.state_DO_09
+municipality_090200,MUNICIPIO CAYETANO GERMOSÁN,090200,base.do,base.state_DO_09
+municipality_090201,CAYETANO GERMOSÁN (D. M.).,090201,base.do,base.state_DO_09
+municipality_090300,MUNICIPIO GASPAR HERNÁNDEZ,090300,base.do,base.state_DO_09
+municipality_090301,GASPAR HERNÁNDEZ (D. M.).,090301,base.do,base.state_DO_09
+municipality_090302,JOBA ARRIBA (D. M.).,090302,base.do,base.state_DO_09
+municipality_090303,VERAGUA (D. M.).,090303,base.do,base.state_DO_09
+municipality_090304,VILLA MAGANTE (D. M.).,090304,base.do,base.state_DO_09
+municipality_090400,MUNICIPIO JAMAO AL NORTE,090400,base.do,base.state_DO_09
+municipality_090401,JAMAO AL NORTE (D. M.).,090401,base.do,base.state_DO_09
+municipality_100100,MUNICIPIO JIMANÁ,100100,base.do,base.state_DO_10
+municipality_100101,JIMANÁ (D. M.).,100101,base.do,base.state_DO_10
+municipality_100102,EL LIMÁN (D. M.).,100102,base.do,base.state_DO_10
+municipality_100103,BOCA DE CACHÁN (D. M.).,100103,base.do,base.state_DO_10
+municipality_100200,MUNICIPIO DUVERGÁ,100200,base.do,base.state_DO_10
+municipality_100201,DUVERGÁ (D. M.).,100201,base.do,base.state_DO_10
+municipality_100202,VENGAN A VER (D. M.).,100202,base.do,base.state_DO_10
+municipality_100300,MUNICIPIO LA DESCUBIERTA,100300,base.do,base.state_DO_10
+municipality_100301,LA DESCUBIERTA (D. M.).,100301,base.do,base.state_DO_10
+municipality_100400,MUNICIPIO POSTRER RÁO,100400,base.do,base.state_DO_10
+municipality_100401,POSTRER RÁO (D. M.).,100401,base.do,base.state_DO_10
+municipality_100402,GUAYABAL (D. M.).,100402,base.do,base.state_DO_10
+municipality_100500,MUNICIPIO CRISTÁBAL,100500,base.do,base.state_DO_10
+municipality_100501,CRISTÁBAL (D. M.).,100501,base.do,base.state_DO_10
+municipality_100502,BATEY 8 (D. M.).,100502,base.do,base.state_DO_10
+municipality_100600,MUNICIPIO MELLA,100600,base.do,base.state_DO_10
+municipality_100601,MELLA (D. M.).,100601,base.do,base.state_DO_10
+municipality_100602,LA COLONIA (D. M.).,100602,base.do,base.state_DO_10
+municipality_110100,MUNICIPIO HIGÁEY,110100,base.do,base.state_DO_11
+municipality_110101,HIGÁEY (D. M.).,110101,base.do,base.state_DO_11
+municipality_110102,LAS LAGUNAS DE NISIBÁN (D. M.).,110102,base.do,base.state_DO_11
+municipality_110103,LA OTRA BANDA (D. M.).,110103,base.do,base.state_DO_11
+municipality_110104,"VERÁN PUNTA CANA (D. M.) (Incluye BÁvaro)",110104,base.do,base.state_DO_11
+municipality_110200,MUNICIPIO SAN RAFAEL DEL YUMA,110200,base.do,base.state_DO_11
+municipality_110201,SAN RAFAEL DEL YUMA (D. M.).,110201,base.do,base.state_DO_11
+municipality_110202,BOCA DE YUMA (D. M.).,110202,base.do,base.state_DO_11
+municipality_110203,BAYAHÁBE (D. M.).,110203,base.do,base.state_DO_11
+municipality_120100,MUNICIPIO LA ROMANA,120100,base.do,base.state_DO_12
+municipality_120101,LA ROMANA (D. M.).,120101,base.do,base.state_DO_12
+municipality_120102,CALETA (D. M.).,120102,base.do,base.state_DO_12
+municipality_120200,MUNICIPIO GUAYMATE,120200,base.do,base.state_DO_12
+municipality_120201,GUAYMATE (D. M.).,120201,base.do,base.state_DO_12
+municipality_120300,MUNICIPIO VILLA HERMOSA,120300,base.do,base.state_DO_12
+municipality_120301,VILLA HERMOSA (D. M.).,120301,base.do,base.state_DO_12
+municipality_120302,CUMAYASA (D. M.).,120302,base.do,base.state_DO_12
+municipality_130100,MUNICIPIO LA VEGA,130100,base.do,base.state_DO_13
+municipality_130101,LA VEGA (D. M.).,130101,base.do,base.state_DO_13
+municipality_130102,RÁO VERDE ARRIBA (D. M.).,130102,base.do,base.state_DO_13
+municipality_130103,EL RANCHITO (D. M.).,130103,base.do,base.state_DO_13
+municipality_130104,TAVERAS (D. M.).,130104,base.do,base.state_DO_13
+municipality_130105,DON JUAN RODRÁGUEZ (D.M.),130105,base.do,base.state_DO_13
+municipality_130200,MUNICIPIO CONSTANZA,130200,base.do,base.state_DO_13
+municipality_130201,CONSTANZA (D. M.).,130201,base.do,base.state_DO_13
+municipality_130202,TIREO (D. M.).,130202,base.do,base.state_DO_13
+municipality_130203,LA SABINA (D. M.).,130203,base.do,base.state_DO_13
+municipality_130300,MUNICIPIO JARABACOA,130300,base.do,base.state_DO_13
+municipality_130301,JARABACOA (D. M.).,130301,base.do,base.state_DO_13
+municipality_130302,BUENA VISTA (D. M.).,130302,base.do,base.state_DO_13
+municipality_130303,MANABAO (D. M.).,130303,base.do,base.state_DO_13
+municipality_130400,MUNICIPIO JIMA ABAJO,130400,base.do,base.state_DO_13
+municipality_130401,JIMA ABAJO (D. M.).,130401,base.do,base.state_DO_13
+municipality_130402,RINCÁN (D. M.).,130402,base.do,base.state_DO_13
+municipality_140100,MUNICIPIO NAGUA,140100,base.do,base.state_DO_14
+municipality_140101,NAGUA (D. M.).,140101,base.do,base.state_DO_14
+municipality_140102,SAN JOSÁ DE MATANZAS (D. M.).,140102,base.do,base.state_DO_14
+municipality_140103,LAS GORDAS (D. M.).,140103,base.do,base.state_DO_14
+municipality_140104,ARROYO AL MEDIO (D. M.).,140104,base.do,base.state_DO_14
+municipality_140200,MUNICIPIO CABRERA,140200,base.do,base.state_DO_14
+municipality_140201,CABRERA (D. M.).,140201,base.do,base.state_DO_14
+municipality_140202,ARROYO SALADO (D. M.).,140202,base.do,base.state_DO_14
+municipality_140203,LA ENTRADA (D. M.).,140203,base.do,base.state_DO_14
+municipality_140300,MUNICIPIO EL FACTOR,140300,base.do,base.state_DO_14
+municipality_140301,EL FACTOR (D. M.).,140301,base.do,base.state_DO_14
+municipality_140302,EL POZO (D. M.).,140302,base.do,base.state_DO_14
+municipality_140400,MUNICIPIO RÁO SAN JUAN,140400,base.do,base.state_DO_14
+municipality_140401,RÁO SAN JUAN (D. M.).,140401,base.do,base.state_DO_14
+municipality_150100,MUNICIPIO MONTE CRISTI,150100,base.do,base.state_DO_15
+municipality_150101,MONTE CRISTI (D. M.).,150101,base.do,base.state_DO_15
+municipality_150200,MUNICIPIO CASTAÁUELAS,150200,base.do,base.state_DO_15
+municipality_150201,CASTAÁUELAS (D. M.).,150201,base.do,base.state_DO_15
+municipality_150202,PALO VERDE (D. M.).,150202,base.do,base.state_DO_15
+municipality_150300,MUNICIPIO GUAYUBÁN,150300,base.do,base.state_DO_15
+municipality_150301,GUAYUBÁN (D. M.).,150301,base.do,base.state_DO_15
+municipality_150302,VILLA ELISA (D. M.).,150302,base.do,base.state_DO_15
+municipality_150303,HATILLO PALMA (D. M.).,150303,base.do,base.state_DO_15
+municipality_150304,CANA CHAPETÁN (D. M.).,150304,base.do,base.state_DO_15
+municipality_150400,MUNICIPIO LAS MATAS DE SANTA CRUZ,150400,base.do,base.state_DO_15
+municipality_150401,LAS MATAS DE SANTA CRUZ (D. M.).,150401,base.do,base.state_DO_15
+municipality_150500,MUNICIPIO PEPILLO SALCEDO,150500,base.do,base.state_DO_15
+municipality_150501,PEPILLO SALCEDO (MANZANILLO),150501,base.do,base.state_DO_15
+municipality_150502,SANTA MARÁA (D. M.),150502,base.do,base.state_DO_15
+municipality_150600,MUNICIPIO VILLA VÁSQUEZ,150600,base.do,base.state_DO_15
+municipality_150601,VILLA VÁSQUEZ,150601,base.do,base.state_DO_15
+municipality_160100,MUNICIPIO PEDERNALES,160100,base.do,base.state_DO_16
+municipality_160101,PEDERNALES,160101,base.do,base.state_DO_16
+municipality_160102,JOSÁ FRANCISCO PEÁA GÁMEZ (D. M.).,160102,base.do,base.state_DO_16
+municipality_160200,MUNICIPIO OVIEDO,160200,base.do,base.state_DO_16
+municipality_160201,OVIEDO,160201,base.do,base.state_DO_16
+municipality_160202,JUANCHO (D. M.).,160202,base.do,base.state_DO_16
+municipality_170100,MUNICIPIO BANÁ,170100,base.do,base.state_DO_17
+municipality_170101,BANÁ (D. M.).,170101,base.do,base.state_DO_17
+municipality_170102,MATANZAS (D. M.).,170102,base.do,base.state_DO_17
+municipality_170103,VILLA FUNDACIÁN (D. M.).,170103,base.do,base.state_DO_17
+municipality_170104,SABANA BUEY (D. M.).,170104,base.do,base.state_DO_17
+municipality_170105,PAYA (D. M.).,170105,base.do,base.state_DO_17
+municipality_170106,VILLA SOMBRERO (D. M.).,170106,base.do,base.state_DO_17
+municipality_170107,EL CARRETÁN (D. M.).,170107,base.do,base.state_DO_17
+municipality_170108,CATALINA (D. M.).,170108,base.do,base.state_DO_17
+municipality_170109,EL LIMONAL (D. M.).,170109,base.do,base.state_DO_17
+municipality_170110,LAS BARÁAS (D. M.).,170110,base.do,base.state_DO_17
+municipality_170200,MUNICIPIO NIZAO,170200,base.do,base.state_DO_17
+municipality_170201,NIZAO,170201,base.do,base.state_DO_17
+municipality_170202,PIZARRETE (D. M.).,170202,base.do,base.state_DO_17
+municipality_170203,SANTANA (D. M.).,170203,base.do,base.state_DO_17
+municipality_170300,MATANZAS,170300,base.do,base.state_DO_17
+municipality_170301,MATANZAS,170301,base.do,base.state_DO_17
+municipality_180100,MUNICIPIO PUERTO PLATA,180100,base.do,base.state_DO_18
+municipality_180101,PUERTO PLATA (D. M.).,180101,base.do,base.state_DO_18
+municipality_180102,YÁSICA ARRIBA (D. M.).,180102,base.do,base.state_DO_18
+municipality_180103,MAIMÁN (D. M.).,180103,base.do,base.state_DO_18
+municipality_180200,MUNICIPIO ALTAMIRA,180200,base.do,base.state_DO_18
+municipality_180201,ALTAMIRA,180201,base.do,base.state_DO_18
+municipality_180202,RÁO GRANDE (D. M.).,180202,base.do,base.state_DO_18
+municipality_180300,MUNICIPIO GUANANICO,180300,base.do,base.state_DO_18
+municipality_180301,GUANANICO,180301,base.do,base.state_DO_18
+municipality_180400,MUNICIPIO IMBERT,180400,base.do,base.state_DO_18
+municipality_180401,IMBERT,180401,base.do,base.state_DO_18
+municipality_180500,MUNICIPIO LOS HIDALGOS,180500,base.do,base.state_DO_18
+municipality_180501,LOS HIDALGOS,180501,base.do,base.state_DO_18
+municipality_180502,NAVAS (D. M.).,180502,base.do,base.state_DO_18
+municipality_180600,MUNICIPIO LUPERÁN,180600,base.do,base.state_DO_18
+municipality_180601,LUPERÁN,180601,base.do,base.state_DO_18
+municipality_180602,LA ISABELA (D. M.).,180602,base.do,base.state_DO_18
+municipality_180603,BELLOSO (D. M.).,180603,base.do,base.state_DO_18
+municipality_180604,EL ESTRECHO DE LUPERÁN OMAR BROSS (D. M.).,180604,base.do,base.state_DO_18
+municipality_180700,MUNICIPIO SOSÁA,180700,base.do,base.state_DO_18
+municipality_180701,SOSÁA,180701,base.do,base.state_DO_18
+municipality_180702,CABARETE (D. M.).,180702,base.do,base.state_DO_18
+municipality_180703,SABANETA DE YÁSICA (D. M.).,180703,base.do,base.state_DO_18
+municipality_180800,MUNICIPIO VILLA ISABELA,180800,base.do,base.state_DO_18
+municipality_180801,VILLA ISABELA,180801,base.do,base.state_DO_18
+municipality_180802,ESTERO HONDO (D. M.).,180802,base.do,base.state_DO_18
+municipality_180803,LA JAIBA (D. M.).,180803,base.do,base.state_DO_18
+municipality_180804,GUALETE (D. M.).,180804,base.do,base.state_DO_18
+municipality_180900,MUNICIPIO VILLA MONTELLANO,180900,base.do,base.state_DO_18
+municipality_180901,VILLA MONTELLANO,180901,base.do,base.state_DO_18
+municipality_190100,MUNICIPIO SALCEDO,190100,base.do,base.state_DO_19
+municipality_190101,SALCEDO,190101,base.do,base.state_DO_19
+municipality_190102,JAMAO AFUERA (D. M.).,190102,base.do,base.state_DO_19
+municipality_190200,MUNICIPIO TENARES,190200,base.do,base.state_DO_19
+municipality_190201,TENARES,190201,base.do,base.state_DO_19
+municipality_190202,BLANCO (D. M.).,190202,base.do,base.state_DO_19
+municipality_190300,MUNICIPIO VILLA TAPIA,190300,base.do,base.state_DO_19
+municipality_190301,VILLA TAPIA,190301,base.do,base.state_DO_19
+municipality_200100,MUNICIPIO SAMANÁ,200100,base.do,base.state_DO_20
+municipality_200101,SAMANÁ,200101,base.do,base.state_DO_20
+municipality_200102,EL LIMÁN  (D. M.).,200102,base.do,base.state_DO_20
+municipality_200103,ARROYO BARRIL (D. M.).,200103,base.do,base.state_DO_20
+municipality_200104,LAS GALERAS (D. M.).,200104,base.do,base.state_DO_20
+municipality_200200,MUNICIPIO SÁNCHEZ,200200,base.do,base.state_DO_20
+municipality_200201,SÁNCHEZ (D. M.).,200201,base.do,base.state_DO_20
+municipality_200300,MUNICIPIO LAS TERRENAS,200300,base.do,base.state_DO_20
+municipality_200301,LAS TERRENAS,200301,base.do,base.state_DO_20
+municipality_210100,MUNICIPIO SAN CRISTÁBAL,210100,base.do,base.state_DO_21
+municipality_210101,SAN CRISTÁBAL (D. M.).,210101,base.do,base.state_DO_21
+municipality_210102,HATO DAMAS (D. M.).,210102,base.do,base.state_DO_21
+municipality_210103,HATILLO (D. M.).,210103,base.do,base.state_DO_21
+municipality_210200,MUNICIPIO SABANA GRANDE DE PALENQUE,210200,base.do,base.state_DO_21
+municipality_210201,SABANA GRANDE DE PALENQUE (D. M.).,210201,base.do,base.state_DO_21
+municipality_210300,MUNICIPIO BAJOS DE HAINA,210300,base.do,base.state_DO_21
+municipality_210301,BAJOS DE HAINA,210301,base.do,base.state_DO_21
+municipality_210302,EL CARRIL (D. M.).,210302,base.do,base.state_DO_21
+municipality_210303,QUITA SUEÁO (D. M.).,210303,base.do,base.state_DO_21
+municipality_210400,MUNICIPIO CAMBITA GARABITOS,210400,base.do,base.state_DO_21
+municipality_210401,CAMBITA GARABITOS,210401,base.do,base.state_DO_21
+municipality_210402,CAMBITA EL PUEBLECITO (D. M.).,210402,base.do,base.state_DO_21
+municipality_210500,MUNICIPIO VILLA ALTAGRACIA,210500,base.do,base.state_DO_21
+municipality_210501,VILLA ALTAGRACIA,210501,base.do,base.state_DO_21
+municipality_210502,SAN JOSÁ DEL PUERTO (D. M.).,210502,base.do,base.state_DO_21
+municipality_210503,MEDINA (D. M.).,210503,base.do,base.state_DO_21
+municipality_210504,LA CUCHILLA (D. M.).,210504,base.do,base.state_DO_21
+municipality_210600,MUNICIPIO YAGUATE,210600,base.do,base.state_DO_21
+municipality_210601,YAGUATE (D. M.).,210601,base.do,base.state_DO_21
+municipality_210602,DOÁA ANA (D. M.),210602,base.do,base.state_DO_21
+municipality_210700,MUNICIPIO SAN GREGORIO DE NIGUA,210700,base.do,base.state_DO_21
+municipality_210701,SAN GREGORIO DE NIGUA,210701,base.do,base.state_DO_21
+municipality_210800,MUNICIPIO LOS CACAOS,210800,base.do,base.state_DO_21
+municipality_210801,LOS CACAOS (D. M.).,210801,base.do,base.state_DO_21
+municipality_220100,MUNICIPIO SAN JUAN,220100,base.do,base.state_DO_22
+municipality_220101,SAN JUAN,220101,base.do,base.state_DO_22
+municipality_220102,PEDRO CORTO (D. M.).,220102,base.do,base.state_DO_22
+municipality_220103,SABANETA (D. M.).,220103,base.do,base.state_DO_22
+municipality_220104,SABANA ALTA (D. M.).,220104,base.do,base.state_DO_22
+municipality_220105,EL ROSARIO (D. M.).,220105,base.do,base.state_DO_22
+municipality_220106,HATO DEL PADRE (D. M.).,220106,base.do,base.state_DO_22
+municipality_220107,GUANITO (D. M.).,220107,base.do,base.state_DO_22
+municipality_220108,LA JAGUA (D. M.).,220108,base.do,base.state_DO_22
+municipality_220109,LAS MAGUANAS-HATO NUEVO (D. M.).,220109,base.do,base.state_DO_22
+municipality_220110,LAS CHARCAS DE MARÁA NOVA (D. M.).,220110,base.do,base.state_DO_22
+municipality_220111,LAS ZANJAS (D. M.),220111,base.do,base.state_DO_22
+municipality_220200,MUNICIPIO BOHECHÁO,220200,base.do,base.state_DO_22
+municipality_220201,BOHECHÁO,220201,base.do,base.state_DO_22
+municipality_220202,ARROYO CANO (D. M.).,220202,base.do,base.state_DO_22
+municipality_220203,YAQUE (D. M.).,220203,base.do,base.state_DO_22
+municipality_220300,MUNICIPIO EL CERCADO,220300,base.do,base.state_DO_22
+municipality_220301,EL CERCADO,220301,base.do,base.state_DO_22
+municipality_220302,DERRUMBADERO (D. M.),220302,base.do,base.state_DO_22
+municipality_220303,BATISTA (D. M.),220303,base.do,base.state_DO_22
+municipality_220400,MUNICIPIO JUAN DE HERRERA,220400,base.do,base.state_DO_22
+municipality_220401,JUAN DE HERRERA,220401,base.do,base.state_DO_22
+municipality_220402,JÁNOVA (D. M.).,220402,base.do,base.state_DO_22
+municipality_220500,MUNICIPIO LAS MATAS DE FARFÁN,220500,base.do,base.state_DO_22
+municipality_220501,LAS MATAS DE FARFÁN,220501,base.do,base.state_DO_22
+municipality_220502,MATAYAYA (D. M.).,220502,base.do,base.state_DO_22
+municipality_220503,CARRERA DE YEGUAS (D. M.).,220503,base.do,base.state_DO_22
+municipality_220600,MUNICIPIO VALLEJUELO,220600,base.do,base.state_DO_22
+municipality_220601,VALLEJUELO,220601,base.do,base.state_DO_22
+municipality_220602,JORJILLO (D. M.).,220602,base.do,base.state_DO_22
+municipality_230100,MUNICIPIO SAN PEDRO DE MACORÁS,230100,base.do,base.state_DO_23
+municipality_230101,SAN PEDRO DE MACORÁS,230101,base.do,base.state_DO_23
+municipality_230200,MUNICIPIO LOS LLANOS,230200,base.do,base.state_DO_23
+municipality_230201,LOS LLANOS,230201,base.do,base.state_DO_23
+municipality_230202,EL PUERTO (D. M.).,230202,base.do,base.state_DO_23
+municipality_230203,GAUTIER (D. M.).,230203,base.do,base.state_DO_23
+municipality_230300,MUNICIPIO RAMÁN SANTANA,230300,base.do,base.state_DO_23
+municipality_230301,RAMÁN SANTANA,230301,base.do,base.state_DO_23
+municipality_230400,MUNICIPIO CONSUELO,230400,base.do,base.state_DO_23
+municipality_230401,CONSUELO,230401,base.do,base.state_DO_23
+municipality_230500,MUNICIPIO QUISQUEYA,230500,base.do,base.state_DO_23
+municipality_230501,QUISQUEYA,230501,base.do,base.state_DO_23
+municipality_230600,MUNICIPIO GUAYACANES,230600,base.do,base.state_DO_23
+municipality_230601,GUAYACANES,230601,base.do,base.state_DO_23
+municipality_240100,MUNICIPIO COTUÁ,240100,base.do,base.state_DO_24
+municipality_240101,COTUÁ,240101,base.do,base.state_DO_24
+municipality_240102,QUITA SUEÁO (D. M.).,240102,base.do,base.state_DO_24
+municipality_240103,CABALLERO (D. M.).,240103,base.do,base.state_DO_24
+municipality_240104,COMEDERO ARRIBA (D. M.).,240104,base.do,base.state_DO_24
+municipality_240105,PLATANAL  (D. M.).,240105,base.do,base.state_DO_24
+municipality_240106,ZAMBRANA ABAJO,240106,base.do,base.state_DO_24
+municipality_240200,MUNICIPIO CEVICOS,240200,base.do,base.state_DO_24
+municipality_240201,CEVICOS,240201,base.do,base.state_DO_24
+municipality_240202,LA CUEVA (D. M.).,240202,base.do,base.state_DO_24
+municipality_240300,MUNICIPIO FANTINO,240300,base.do,base.state_DO_24
+municipality_240301,FANTINO,240301,base.do,base.state_DO_24
+municipality_240400,MUNICIPIO LA MATA,240400,base.do,base.state_DO_24
+municipality_240401,LA MATA,240401,base.do,base.state_DO_24
+municipality_240402,LA BIJA (D. M.).,240402,base.do,base.state_DO_24
+municipality_240403,ANGELINA (D. M.).,240403,base.do,base.state_DO_24
+municipality_240404,HERNANDO ALONZO (D. M.).,240404,base.do,base.state_DO_24
+municipality_250100,MUNICIPIO SANTIAGO,250100,base.do,base.state_DO_25
+municipality_250101,SANTIAGO,250101,base.do,base.state_DO_25
+municipality_250102,PEDRO GARCÁA (D. M.).,250102,base.do,base.state_DO_25
+municipality_250104,BAITOA (D. M.).,250104,base.do,base.state_DO_25
+municipality_250105,LA CANELA (D. M.).,250105,base.do,base.state_DO_25
+municipality_250106,SAN FRANCISCO DE JACAGUA (D. M.).,250106,base.do,base.state_DO_25
+municipality_250107,HATO DEL YAQUE (D. M.).,250107,base.do,base.state_DO_25
+municipality_250200,MUNICIPIO BISONÁ,250200,base.do,base.state_DO_25
+municipality_250201,VILLA BISONÁ (NAVARRETE) (D. M.).,250201,base.do,base.state_DO_25
+municipality_250300,MUNICIPIO JÁNICO,250300,base.do,base.state_DO_25
+municipality_250301,JÁNICO,250301,base.do,base.state_DO_25
+municipality_250302,JUNCALITO (D. M.).,250302,base.do,base.state_DO_25
+municipality_250303,EL CAIMITO (D. M.).,250303,base.do,base.state_DO_25
+municipality_250400,MUNICIPIO LICEY AL MEDIO,250400,base.do,base.state_DO_25
+municipality_250401,LICEY AL MEDIO,250401,base.do,base.state_DO_25
+municipality_250402,LAS PALOMAS (D. M.).,250402,base.do,base.state_DO_25
+municipality_250500,MUNICIPIO SAN JOSÁ DE LAS MATAS,250500,base.do,base.state_DO_25
+municipality_250501,SAN JOSÁ DE LAS MATAS,250501,base.do,base.state_DO_25
+municipality_250502,EL RUBIO (D. M.).,250502,base.do,base.state_DO_25
+municipality_250503,LA CUESTA (D. M.).,250503,base.do,base.state_DO_25
+municipality_250504,LAS PLACETAS (D. M.).,250504,base.do,base.state_DO_25
+municipality_250600,MUNICIPIO TAMBORIL,250600,base.do,base.state_DO_25
+municipality_250601,TAMBORIL,250601,base.do,base.state_DO_25
+municipality_250602,CANCA LA PIEDRA (D. M.).,250602,base.do,base.state_DO_25
+municipality_250700,MUNICIPIO VILLA GONZÁLEZ,250700,base.do,base.state_DO_25
+municipality_250701,VILLA GONZÁLEZ,250701,base.do,base.state_DO_25
+municipality_250702,PALMAR ARRIBA (D. M.).,250702,base.do,base.state_DO_25
+municipality_250703,EL LIMÁN (D. M.).,250703,base.do,base.state_DO_25
+municipality_250800,MUNICIPIO PUÁAL,250800,base.do,base.state_DO_25
+municipality_250801,PUÁAL,250801,base.do,base.state_DO_25
+municipality_250802,GUAYABAL (D. M.).,250802,base.do,base.state_DO_25
+municipality_250803,CANABACOA (D. M.).,250803,base.do,base.state_DO_25
+municipality_250900,MUNICIPIO SABANA IGLESIA,250900,base.do,base.state_DO_25
+municipality_250901,SABANA IGLESIA,250901,base.do,base.state_DO_25
+municipality_251000,BAITOA,251000,base.do,base.state_DO_25
+municipality_251001,BAITOA,251001,base.do,base.state_DO_25
+municipality_260100,MUNICIPIO SAN IGNACIO DE SABANETA,260100,base.do,base.state_DO_26
+municipality_260101,SAN IGNACIO DE SABANETA (D. M.).,260101,base.do,base.state_DO_26
+municipality_260200,MUNICIPIO VILLA LOS ALMÁCIGOS,260200,base.do,base.state_DO_26
+municipality_260201,VILLA LOS ALMÁCIGOS (D. M.).,260201,base.do,base.state_DO_26
+municipality_260300,MUNICIPIO MONCIÁN,260300,base.do,base.state_DO_26
+municipality_260301,MONCIÁN (D. M.).,260301,base.do,base.state_DO_26
+municipality_270100,MUNICIPIO MAO,270100,base.do,base.state_DO_27
+municipality_270101,MAO (D. M.).,270101,base.do,base.state_DO_27
+municipality_270102,AMINA (D. M.).,270102,base.do,base.state_DO_27
+municipality_270103,JAIBÁN (PUEBLO NUEVO) (D. M.).,270103,base.do,base.state_DO_27
+municipality_270104,GUATAPANAL (D. M.).,270104,base.do,base.state_DO_27
+municipality_270200,MUNICIPIO ESPERANZA,270200,base.do,base.state_DO_27
+municipality_270201,ESPERANZA,270201,base.do,base.state_DO_27
+municipality_270202,MAIZAL (D. M.).,270202,base.do,base.state_DO_27
+municipality_270203,JICOMÁ (D. M.).,270203,base.do,base.state_DO_27
+municipality_270204,BOCA DE MAO (D. M.).,270204,base.do,base.state_DO_27
+municipality_270205,PARADERO (D. M.).,270205,base.do,base.state_DO_27
+municipality_270300,MUNICIPIO LAGUNA SALADA,270300,base.do,base.state_DO_27
+municipality_270301,LAGUNA SALADA (D. M.).,270301,base.do,base.state_DO_27
+municipality_270302,JAIBÁN (D. M.).,270302,base.do,base.state_DO_27
+municipality_270303,LA CAYA (D. M.).,270303,base.do,base.state_DO_27
+municipality_270304,CRUCE DE GUAYACANES (D. M.).,270304,base.do,base.state_DO_27
+municipality_280100,MUNICIPIO BONAO,280100,base.do,base.state_DO_28
+municipality_280101,BONAO (D. M.).,280101,base.do,base.state_DO_28
+municipality_280102,SABANA DEL PUERTO (D. M.).,280102,base.do,base.state_DO_28
+municipality_280103,JUMA BEJUCAL (D. M.).,280103,base.do,base.state_DO_28
+municipality_280104,ARROYO  TORO - MASIPEDRO (D. M.).,280104,base.do,base.state_DO_28
+municipality_280105,JAYACO (D. M.).,280105,base.do,base.state_DO_28
+municipality_280106,LA SALVIA - LOS QUEMADOS (D. M.).,280106,base.do,base.state_DO_28
+municipality_280200,MUNICIPIO MAIMÁN,280200,base.do,base.state_DO_28
+municipality_280201,MAIMÁN (D. M.).,280201,base.do,base.state_DO_28
+municipality_280300,MUNICIPIO PIEDRA BLANCA,280300,base.do,base.state_DO_28
+municipality_280301,PIEDRA BLANCA (D. M.).,280301,base.do,base.state_DO_28
+municipality_280302,VILLA DE SONADOR (D. M.).,280302,base.do,base.state_DO_28
+municipality_280303,JUAN ADRIÁN (D. M.).,280303,base.do,base.state_DO_28
+municipality_290100,MUNICIPIO MONTE PLATA,290100,base.do,base.state_DO_29
+municipality_290101,MONTE PLATA (D. M.).,290101,base.do,base.state_DO_29
+municipality_290102,DON JUAN (D. M.).,290102,base.do,base.state_DO_29
+municipality_290103,CHIRINO (D. M.).,290103,base.do,base.state_DO_29
+municipality_290104,BOYÁ (D. M.).,290104,base.do,base.state_DO_29
+municipality_290200,MUNICIPIO BAYAGUANA,290200,base.do,base.state_DO_29
+municipality_290201,BAYAGUANA (D. M.).,290201,base.do,base.state_DO_29
+municipality_290300,MUNICIPIO SABANA GRANDE DE BOYÁ,290300,base.do,base.state_DO_29
+municipality_290301,SABANA GRANDE DE BOYÁ (D. M.).,290301,base.do,base.state_DO_29
+municipality_290302,GONZALO (D. M.).,290302,base.do,base.state_DO_29
+municipality_290303,MAJAGUAL (D. M.).,290303,base.do,base.state_DO_29
+municipality_290400,MUNICIPIO YAMASÁ,290400,base.do,base.state_DO_29
+municipality_290402,LOS BOTADOS (D. M.).,290402,base.do,base.state_DO_29
+municipality_290403,MAMÁ TINGÁ (D. M.).,290403,base.do,base.state_DO_29
+municipality_290500,MUNICIPIO PERALVILLO,290500,base.do,base.state_DO_29
+municipality_290501,PERALVILLO (D. M.).,290501,base.do,base.state_DO_29
+municipality_300100,MUNICIPIO HATO MAYOR,300100,base.do,base.state_DO_30
+municipality_300101,HATO MAYOR (D. M.).,300101,base.do,base.state_DO_30
+municipality_300102,YERBA BUENA (D. M.).,300102,base.do,base.state_DO_30
+municipality_300103,MATA PALACIO (D. M.).,300103,base.do,base.state_DO_30
+municipality_300104,GUAYABO DULCE (D. M.).,300104,base.do,base.state_DO_30
+municipality_300200,MUNICIPIO SABANA DE LA MAR,300200,base.do,base.state_DO_30
+municipality_300201,SABANA DE LA MAR (D. M.).,300201,base.do,base.state_DO_30
+municipality_300202,ELUPINA CORDERO DE LAS CAÁITAS (D. M.).,300202,base.do,base.state_DO_30
+municipality_300300,MUNICIPIO EL VALLE,300300,base.do,base.state_DO_30
+municipality_300301,EL VALLE (D. M.).,300301,base.do,base.state_DO_30
+municipality_310100,MUNICIPIO SAN JOSÁ DE OCOA,310100,base.do,base.state_DO_31
+municipality_310101,SAN JOSÁ DE OCOA (D. M.).,310101,base.do,base.state_DO_31
+municipality_310102,LA CIÁNAGA (D. M.).,310102,base.do,base.state_DO_31
+municipality_310103,NIZAO - LAS AUYAMAS (D. M.).,310103,base.do,base.state_DO_31
+municipality_310104,EL PINAR (D. M.).,310104,base.do,base.state_DO_31
+municipality_310105,EL NARANJAL (D. M.).,310105,base.do,base.state_DO_31
+municipality_310200,MUNICIPIO SABANA LARGA,310200,base.do,base.state_DO_31
+municipality_310201,SABANA LARGA (D. M.).,310201,base.do,base.state_DO_31
+municipality_310300,MUNICIPIO RANCHO ARRIBA,310300,base.do,base.state_DO_31
+municipality_310301,RANCHO ARRIBA (D. M.).,310301,base.do,base.state_DO_31
+municipality_320100,MUNICIPIO SANTO DOMINGO ESTE,320100,base.do,base.state_DO_32
+municipality_320101,SANTO DOMINGO ESTE (D. M.).,320101,base.do,base.state_DO_32
+municipality_320102,SAN LUIS (D. M.).,320102,base.do,base.state_DO_32
+municipality_320200,MUNICIPIO SANTO DOMINGO OESTE,320200,base.do,base.state_DO_32
+municipality_320201,SANTO DOMINGO OESTE (D. M.).,320201,base.do,base.state_DO_32
+municipality_320300,MUNICIPIO SANTO DOMINGO NORTE,320300,base.do,base.state_DO_32
+municipality_320301,SANTO DOMINGO NORTE (D. M.).,320301,base.do,base.state_DO_32
+municipality_320302,LA VICTORIA (D. M.).,320302,base.do,base.state_DO_32
+municipality_320400,MUNICIPIO BOCA CHICA,320400,base.do,base.state_DO_32
+municipality_320401,BOCA CHICA (D. M.).,320401,base.do,base.state_DO_32
+municipality_320402,LA CALETA (D. M.).,320402,base.do,base.state_DO_32
+municipality_320500,MUNICIPIO SAN ANTONIO DE GUERRA,320500,base.do,base.state_DO_32
+municipality_320501,SAN ANTONIO DE GUERRA (D. M.).,320501,base.do,base.state_DO_32
+municipality_320502,HATO VIEJO (D. M.).,320502,base.do,base.state_DO_32
+municipality_320600,MUNICIPIO LOS ALCARRIZOS,320600,base.do,base.state_DO_32
+municipality_320601,LOS ALCARRIZOS (D. M.).,320601,base.do,base.state_DO_32
+municipality_320602,PALMAREJO-VILLA LINDA (D. M.).,320602,base.do,base.state_DO_32
+municipality_320603,PANTOJA (D. M.).,320603,base.do,base.state_DO_32
+municipality_320700,MUNICIPIO PEDRO BRAND,320700,base.do,base.state_DO_32
+municipality_320701,PEDRO BRAND (D. M.).,320701,base.do,base.state_DO_32
+municipality_320702,LA GUÁYIGA (D. M.).,320702,base.do,base.state_DO_32
+municipality_320703,LA CUABA (D. M.).,320703,base.do,base.state_DO_32

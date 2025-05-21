@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Action for itx.xml.data.dgii -->
+        <record id="action_itx_xml_data_dgii" model="ir.actions.act_window">
+            <field name="name">XML Documents DGII</field>
+            <field name="res_model">itx.xml.data.dgii</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
+        <!-- Root Menu for DGII - App Level (appears in main menu) -->
+        <menuitem
+            name="DGII"
+            id="l10n_do_dgii_fe_base.menu_root"
+            sequence="50"
+            web_icon="l10n_do_dgii_fe_base,static/description/icon.png"
+        />
+
+        <!-- First level menu: Credentials -->
+        <menuitem
+            name="Credentials"
+            id="l10n_do_dgii_fe_base.menu_fe_dgii_credentials"
+            sequence="10"
+            parent="l10n_do_dgii_fe_base.menu_root"
+            action="action_itx_fe_dgii"
+        />
+
+        <!-- Second level: XML Documents -->
+        <menuitem
+            name="XML Documents"
+            id="l10n_do_dgii_fe_base.menu_xml_data"
+            sequence="20"
+            parent="l10n_do_dgii_fe_base.menu_root"
+            action="action_itx_xml_data_dgii"
+        />
+
+    </data>
+</odoo>

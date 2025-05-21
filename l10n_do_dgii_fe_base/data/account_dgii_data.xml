@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="tipo_pago_efectivo" model="tipopago.dgii">
+            <field name="code_payment_dgii">01</field>
+            <field name="name_payment_dgii">Efectivo</field>
+        </record>
+
+        <record id="tipo_pago_cheque" model="tipopago.dgii">
+            <field name="code_payment_dgii">02</field>
+            <field name="name_payment_dgii">Cheque/Transferencia/Depósito</field>
+        </record>
+
+        <record id="tipo_pago_tdcd" model="tipopago.dgii">
+            <field name="code_payment_dgii">03</field>
+            <field name="name_payment_dgii">Tarjeta de Débito/Crédito</field>
+        </record>
+
+        <record id="tipo_pago_vc" model="tipopago.dgii">
+            <field name="code_payment_dgii">04</field>
+            <field name="name_payment_dgii">Venta Crédito</field>
+        </record>
+
+        <record id="tipo_pago_cr" model="tipopago.dgii">
+            <field name="code_payment_dgii">05</field>
+            <field name="name_payment_dgii">Bonos o Certificados de regalo </field>
+        </record>
+
+        <record id="tipo_pago_permuta" model="tipopago.dgii">
+            <field name="code_payment_dgii">06</field>
+            <field name="name_payment_dgii">Permuta</field>
+        </record>
+
+        <record id="tipo_pago_tdd" model="tipopago.dgii">
+            <field name="code_payment_dgii">07</field>
+            <field name="name_payment_dgii">Nota de crédito</field>
+        </record>
+
+        <record id="tipo_pago_ot" model="tipopago.dgii">
+            <field name="code_payment_dgii">08</field>
+            <field name="name_payment_dgii">Otras Formas de pago</field>
+        </record>
+    </data>
+
+    <data noupdate="1">
+        <record id="dgii_api_base_url" model="ir.config_parameter">
+            <field name="key">dgii_api.base_url</field>
+            <field name="value">http://localhost:8069</field>
+        </record>
+    </data>
+</odoo>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_itx_xml_data_dgii_form_debug" model="ir.ui.view">
+            <field name="name">itx.xml.data.dgii.form.debug</field>
+            <field name="model">itx.xml.data.dgii</field>
+            <field name="priority">32</field>
+            <field name="arch" type="xml">
+                <form string="XML DGII">
+                    <sheet>
+                        <group>
+                            <field name="name"/>
+                            <field name="account_move_id"/>
+                            <field name="status"/>
+                            <field name="dgi_status"/>
+                            <field name="track_id"/>
+                            <field name="dgii_auth_number"/>
+                            <field name="authorized"/>
+                        </group>
+                        <notebook>
+                            <page string="XML (borrador / enviado)">
+                                <field name="xml_data" widget="text" nolabel="1" readonly="1"
+                                       placeholder="Sin XML aún — use «Vista previa XML / XSD» en la factura o reconstruya."/>
+                            </page>
+                            <page string="XML firmado" invisible="not signed_xml">
+                                <field name="signed_xml" widget="text" nolabel="1" readonly="1"/>
+                            </page>
+                            <page string="Error DGII" invisible="not dgi_err_msg">
+                                <field name="dgi_err_msg" nolabel="1" readonly="1"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>

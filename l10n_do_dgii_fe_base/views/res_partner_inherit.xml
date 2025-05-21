@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_inherit_dgii_municipality" model="ir.ui.view">
+        <field name="name">res.partner.form.inherit.dgii.municipality</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='street2']" position="after">
+                <field
+                    name="res_municipality_id"
+                    placeholder="Municipio (DGII)..."
+                    context="{'state_id': state_id, 'default_state_id': state_id}"
+                    class="oe_edit_only"
+                />
+            </xpath>
+        </field>
+    </record>
+</odoo>

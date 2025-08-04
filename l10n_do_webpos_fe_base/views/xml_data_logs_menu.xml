@@ -1,0 +1,91 @@
+<odoo>
+    <data>
+
+        <!-- View ID for my.xml.data Form View -->
+        <record id="view_my_xml_data_form" model="ir.ui.view">
+            <field name="name">my.xml.data.form</field>
+            <field name="model">my.xml.data</field>
+            <field name="arch" type="xml">
+                <form string="My XML Data Form">
+                    <group>
+                        
+                        <field name="name" />
+                    </group>
+                    <group>
+                        
+                        <field name="xml_data"  />
+                    </group>
+                    <group>
+                        
+                        <field name="status" />
+                        <field name="error"/>
+                        <field name="response_data" />
+                    </group>
+ 
+                </form>
+  
+            </field>
+        </record>
+
+        <!-- Custom Tree View Definition -->
+        <record id="view_my_xml_data_tree" model="ir.ui.view">
+            <field name="name">my.xml.data.tree</field>
+            <field name="model">my.xml.data</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="name" />
+                    <field name="status" />
+                </tree>
+            </field>
+        </record>
+
+        <!-- Main Menu Definition -->
+        <record id="action_xml_data_logs" model="ir.actions.act_window">
+            <field name="name">Fiscal Printer 2</field>
+            <field name="res_model">my.xml.data</field>
+            <field name="view_mode">tree,form</field>
+
+        </record>
+
+        <menuitem name="XML data logs" id="l10n_do_webpos_fe_base.xml_data_logs" sequence="2" 
+        action="action_xml_data_logs" parent="l10n_do_webpos_fe_base.menu_root"/>
+
+        <!-- Custom tree view for account.move with my.xml.data related fields -->
+        <record id="view_account_move_webpos_tree" model="ir.ui.view">
+            <field name="name">account.move.webpos.tree</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="name"/>
+                    <field name="journal_id"/>
+                    <field name="partner_id"/>
+                    <field name="invoice_date"/>
+                    <field name="amount_total"/>
+                    <field name="xml_name"/>
+                    <field name="status"/>
+                    <field name="dgi_status"/>
+                    <field name="dgi_err_msg"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Update the action to use the new tree view -->
+        <record id="action_account_move_webpos" model="ir.actions.act_window">
+            <field name="name">Electronic Invoices (WebPOS)</field>
+            <field name="res_model">account.move</field>
+            <field name="view_mode">tree,form</field>
+            <field name="view_id" ref="view_account_move_webpos_tree"/>
+            <field name="domain">[("journal_id.is_webpos", "=", True)]</field>
+        </record>
+
+        <!-- Update the Electronic Invoices menu to use the new action -->
+        <menuitem
+            name="Electronic Invoices"
+            id="l10n_do_webpos_fe_base.menu_fe_webpos_invoices"
+            sequence="20"
+            parent="l10n_do_webpos_fe_base.menu_root"
+            action="action_account_move_webpos"
+        />
+
+    </data>
+</odoo>

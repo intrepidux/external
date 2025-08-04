@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+    
+        <record id="tipo_payment_view_form" model="ir.ui.view">
+            <field name="name">Tipos de pago</field>
+            <field name="model">tipopago.webpos</field>
+            <field name="arch" type="xml">
+                <form string="">
+                    <sheet>
+                        <group>
+                            <field name="code_payment_webpos" />
+                            <field name="name_payment_webpos" />
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>        
+
+        <record id="tipo_payment_view_tree" model="ir.ui.view">
+            <field name="name">Tipo de pagos</field>
+            <field name="model">tipopago.webpos</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="code_payment_webpos" />
+                    <field name="name_payment_webpos" />
+                </tree>
+            </field>
+        </record>
+
+        <record id="l10n_do_webpos_fe_base.action_list_type_payment" model="ir.actions.act_window">
+            <field name="name">Tipo de pagos</field>
+            <field name="res_model">tipopago.webpos</field>            
+            <field name="view_mode">tree,form</field>                     
+        </record>
+    
+        <menuitem
+            id="tipo_pago_webpos_menu"
+            name="Tipo de pagos"
+            action="l10n_do_webpos_fe_base.action_list_type_payment"            
+            parent="account.root_payment_menu"            
+            sequence="5"/>
+
+        <!-- groups="account.group_account_manager" -->
+    </data>
+</odoo>

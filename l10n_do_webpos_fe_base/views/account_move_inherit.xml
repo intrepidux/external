@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- <record id="itx_account_move_inherit" model="ir.ui.view">
+            <field name="name">itx.account.move.inherit</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account_edi.view_move_form_inherit" />
+            <field name="arch" type="xml">
+                <xpath expr="//page[@id='edi_documents']" position="replace">
+                    <page id="edi_documents" string="Documeto EDI (XML)" attrs="{'invisible': [('edi_document_ids', '=', [])]}">
+                        <field name="edi_document_ids">
+                            <tree create="false" delete="false" edit="false" decoration-danger="error">
+                                <field name="name"/>
+                                <field name="edi_format_name"/>
+                                <field name="state"/>
+                                <field name="error" invisible="1"/>
+                                <button name="action_export_xml" type="object" class="oe_link oe_inline" string="Download" attrs="{'invisible': [('error', '=', False)]}"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>     -->
+
+        
+        <record id="itx_account_move_inherit" model="ir.ui.view">
+            <field name="name">itx.account.move.inherit</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form" />
+            <field name="arch" type="xml">
+                <xpath expr="//page[@name='other_info']" position="after">
+                    <!-- <page id="f_electronica" string="F.Electronica" attrs="{'invisible': [('xml_data_ids', '=', [])]}"> -->
+                    <page id="f_electronica" string="F.Electronica" >
+                        <field name="xml_data_ids" context="{'default_account_move_id': id}">
+                            <tree>
+                                <field name="name" string="Nombre"/>
+                                <field name="xml_file_binary" widget="binary" filename="name" string="XML File"/>
+                                <field name="status" string="WebPos Status"/>
+                                <field name="dgi_status" string="Estado DGII"/>
+                                <field name="dgi_err_msg" string="Mensaje Error DGII"/>
+                                <button name="rebuild_xml_to_send" type="object" string="Reconstruir Envío" class="btn-secondary"/>
+                                <button name="action_verify_sent_encf" type="object" string="Verificar DGII" class="btn-secondary"/>
+                            </tree>
+                        </field>
+                        <!-- <group>
+                            <field name="xml_data_id" context="{'default_account_move_id': id}" options="{'no_create': True}">
+                                <tree>
+                                    <field name="name" string="Nombre"/>
+                                    <field name="xml_data" widget="binary" options="{'filename': 'xml_file.xml'}" />
+                                    <field name="status" string="WebPos Status"/>
+                                    <field name="dgi_status" string="Estado DGII"/>
+                                    <field name="dgi_err_msg" string="Mensaje Error DGII"/>
+                        
+                                
+                                    <button name="rebuild_xml_to_send" type="object" string="Reconstruir envio" class="btn-secondary"/>
+                                    <button name="action_verify_sent_encf" type="object" string="Verificar DGII" class="btn-secondary"/>
+                                 
+                                </tree>
+                            </field>
+                        </group> -->
+                        <!-- <field name="xml_data_ids">
+                            <tree create="false" delete="false" edit="false" >
+                                <field name="name"/>
+                                <field name="xml_data" widget="binary" options="{'filename': 'pdf_webpos.pdf'}" />
+                                <field name="status"/>
+                                <field name="dgi_status" string="Estado DGII" />
+                                <field name="dgi_err_msg" /> -->
+
+                                <!-- <field name="json_response" widget="text" options="{'filename':'Json_Data'}" /> -->
+                                
+                                <!-- Botón para reenviar -->
+                                <!-- <button name="action_resend_xml" type="object" string="Reenviar" class="btn-secondary" attrs="{'invisible': [('status', '=', 'sent')]}"/> -->
+
+                                <!-- <button name="action_resend_xml" type="object" string="Reenviar" class="btn-secondary"/>
+                                <button name="rebuild_xml_to_send" type="object" string="Reconstruir envio" class="btn-secondary"/>
+                                <button name="action_verify_sent_encf" type="object" string="Verificar DGII" class="btn-secondary"/>
+                                 
+                            </tree>
+                        </field> -->
+                    </page>
+                </xpath>
+                <xpath expr="//group[@id='header_left_group']" position="inside"> 
+                    <field name="dgi_status" invisible="not is_ecf_invoice"/>
+
+                    <!--  pendiente exponer es_webpos_diario en el account.move de factura -->
+                    <!-- <field name="dgi_status" attrs="{'invisible': [('is_ecf_invoice', '=', False), ('journal_id.is_webpos', '=', False)]}"/>  -->
+                    
+                </xpath>
+            </field>
+        </record>
+
+
+
+
+
+
+
+
+    </data>
+</odoo>

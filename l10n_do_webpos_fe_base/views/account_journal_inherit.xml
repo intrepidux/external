@@ -1,0 +1,18 @@
+<odoo>
+    <data>
+        <record id="view_account_journal_form_inherit" model="ir.ui.view">
+            <field name="model">account.journal</field>
+            <field name="name">account.journal.form</field>
+            <field name="inherit_id" ref="l10n_latam_invoice_document.view_account_journal_form"/>
+            <field name="arch" type="xml">
+                    <xpath expr="//field[@name='type']" position="after">
+                
+                        <!-- Muestra si el check es fiscal es verdadero -->
+                        <field name="is_webpos" invisible="not l10n_latam_use_documents"/> 
+                    
+                    </xpath>
+
+            </field>
+        </record>
+    </data>
+</odoo>

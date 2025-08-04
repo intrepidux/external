@@ -1,0 +1,16 @@
+<odoo>
+    <data>
+
+        <!-- Submenu for Configuration/Credentials -->
+        <menuitem
+            name="Credentials"
+            id="l10n_do_webpos_fe_base.menu_fe_webpos_credentials"
+            sequence="10"
+            parent="l10n_do_webpos_fe_base.menu_root"
+            action="action_fe_webpos"
+        />
+
+        <!-- You can add more submenus here -->
+
+    </data>
+</odoo> 

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+
+        <record id="tipo_pago_efectivo" model="tipopago.webpos">
+            <field name="code_payment_webpos">01</field>
+            <field name="name_payment_webpos">Efectivo</field>
+        </record>
+
+        <record id="tipo_pago_cheque" model="tipopago.webpos">
+            <field name="code_payment_webpos">02</field>
+            <field name="name_payment_webpos">Cheque/Transferencia/Depósito</field>
+        </record>
+
+        <record id="tipo_pago_tdcd" model="tipopago.webpos">
+            <field name="code_payment_webpos">03</field>
+            <field name="name_payment_webpos">Tarjeta de Débito/Crédito</field>
+        </record>
+
+        <record id="tipo_pago_vc" model="tipopago.webpos">
+            <field name="code_payment_webpos">04</field>
+            <field name="name_payment_webpos">Venta Crédito</field>
+        </record>
+
+        <record id="tipo_pago_cr" model="tipopago.webpos">
+            <field name="code_payment_webpos">05</field>
+            <field name="name_payment_webpos">Bonos o Certificados de regalo </field>
+        </record>
+
+        <record id="tipo_pago_permuta" model="tipopago.webpos">
+            <field name="code_payment_webpos">06</field>
+            <field name="name_payment_webpos">Permuta</field>
+        </record>
+
+        <record id="tipo_pago_tdd" model="tipopago.webpos">
+            <field name="code_payment_webpos">07</field>
+            <field name="name_payment_webpos">Nota de crédito</field>
+        </record>
+
+        <record id="tipo_pago_ot" model="tipopago.webpos">
+            <field name="code_payment_webpos">08</field>
+            <field name="name_payment_webpos">Otras Formas de pago</field>
+        </record>
+
+
+
+    </data>
+</odoo>

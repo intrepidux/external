@@ -1,0 +1,86 @@
+<odoo>
+    <data>
+
+        <!-- View ID for int.fpwebpos Form View -->
+        <record id="view_int_fpwebpos_form" model="ir.ui.view">
+            <field name="name">int.fpwebpos.form</field>
+            <field name="model">int.fpwebpos</field>
+            <field name="arch" type="xml">
+                <form string="Printer Setup">
+                    <group>
+                        <field name="name" />
+                    </group>
+                    <group>
+                        <field name="serial_machine" />
+                    </group>
+                    <group>
+                        <field name="sftp_port" />
+                    </group>
+                    <group>
+                        <field name="sftp_login"/>
+                    </group>
+                    <group>
+                        <field name="sftp_password"  />
+                    </group>
+                    <group>
+                        <field name="remote_directory"  />
+                    </group>
+                    <group>
+                        <field name="default_machine"  />
+                    </group>
+
+                    <group>
+                        <field name="branch_id" />
+
+                    </group>
+                    <group>
+                        <button name="check_printer_connection" string="Verificar Conexión" type="object" class="oe_highlight" />
+                    </group>
+                    <group attrs="{'invisible': [('id','==', False)]}" >
+                        <field name="printer_available" readonly='True'/>
+                        <field name="xml_data_ids" />
+                    </group>
+
+                    
+
+
+ 
+                </form>
+  
+            </field>
+        </record>
+
+        <!-- Printer Tree View Definition -->
+        <record id="view_int_fpwebpos_tree" model="ir.ui.view">
+            <field name="name">int.fpwebpos.tree</field>
+            <field name="model">int.fpwebpos</field>
+            <field name="arch" type="xml">
+                <tree>
+                        <field name="name" /> 
+                        <field name="serial_machine" />
+                        <field name="default_machine"  />
+                        <field name="branch_id" />
+                        <field name="printer_available" readonly="1"/>
+                        <button name="check_printer_connection" string="Verificar Conexión" type="object" class="oe_highlight" />
+                </tree>
+            </field>
+        </record>
+                                 
+
+
+        <!-- Main Menu Definition -->
+        <record id="action_fiscal_printer" model="ir.actions.act_window">
+            <field name="name">Printers</field>
+            <field name="res_model">int.fpwebpos</field>
+            <field name="view_mode">tree,form</field>       
+ 
+        </record>
+
+
+        <menuitem name="Fiscal Printer" id="l10n_do_webpos_fe_base.menu_root" sequence="115" groups="base.group_user"
+                  web_icon="l10n_do_webpos_fe_base,static/description/icon.png" action="action_fiscal_printer"/>
+        <menuitem name="Fiscal Printer Manager" id="l10n_do_webpos_fe_base.menu_printers" sequence="1" 
+            action="action_fiscal_printer" parent="l10n_do_webpos_fe_base.menu_root"/>
+
+    </data>
+</odoo>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="account_tax_inherit_webpos" model="ir.ui.view">
+            <field name="name">Tipo de impuesto aceptado por webpos</field>
+            <field name="model">account.tax</field>
+            <field name="inherit_id" ref="account.view_tax_form"/>
+            <field name="type">form</field>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='active']" position="after">
+                    <field name="tipo_impuesto_webpos" />
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

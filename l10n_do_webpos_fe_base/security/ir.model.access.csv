@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_webpos_order,access_webpos_order_ncf_temp,model_itx_fe_webpos,base.group_system,1,1,1,1
+access_webpos_order_xml,access_webpos_order_ncf_temp,model_my_xml_data,base.group_system,1,1,1,1
+access_tipopagos_webpos,access_l10n_do_webpos_fe_base,model_tipopago_webpos,base.group_system,1,1,1,1
+access_webpos_order_xml2,access_webpos_order_ncf_temp,model_my_xml_data,,1,0,0,0
+access_webpos_order_new,access_webpos_order_ncf_temp,model_itx_fe_webpos,base.group_user,1,0,1,1
+access_webpos_order_xml_new,access_webpos_order_ncf_temp,model_my_xml_data,base.group_user,1,0,1,1
+access_tipopagos_webpos_new,access_l10n_do_webpos_fe_base,model_tipopago_webpos,base.group_user,1,0,1,1

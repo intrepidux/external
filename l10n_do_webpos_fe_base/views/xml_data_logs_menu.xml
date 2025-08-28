@@ -18,8 +18,7 @@
                     <group>
                         
                         <field name="status" />
-                        <field name="error"/>
-                        <field name="response_data" />
+                    <field name="error"/>
                     </group>
  
                 </form>

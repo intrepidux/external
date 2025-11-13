@@ -1,5 +1,5 @@
 {
-    'name': "l10n_do_webpos_fe_base",
+    'name': "ITX L10n DO Webpos FE Base",
     'summary': """
         Integracion facturacion electronica webpos República Dominicana
         """,
@@ -29,4 +29,4 @@
     ],
     # "post_init_hook": "post_init_hook", //revisar maximo recursions en actualizacion odoo sh
 
-}         
+}

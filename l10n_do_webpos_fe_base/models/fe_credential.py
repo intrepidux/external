@@ -29,3 +29,5 @@ class IntrepiduxFacturacionElectronica(models.Model):
                 ])
                 if existing_active > 1:
                     raise ValidationError("Solo puede haber un registro activo por compañía.")
+
+    

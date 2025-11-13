@@ -43,6 +43,10 @@
             <field name="name_payment_webpos">Otras Formas de pago</field>
         </record>
 
+        <record id="webpos_api_base_url" model="ir.config_parameter">
+            <field name="key">webpos_api.base_url</field>
+            <field name="value">https://api.intrepidux.com/webpos</field>
+        </record>
 
 
     </data>

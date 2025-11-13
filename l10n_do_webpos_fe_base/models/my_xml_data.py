@@ -520,6 +520,23 @@ class MyXMLData(models.Model):
             _logger.error('An unexpected error occurred during XML generation API call: %s', str(e))
             raise UserError(_('An unexpected error occurred during XML generation: %s') % str(e))
 
+    def test_api_connection(self):
+        """Test API connectivity by calling the test endpoint."""
+        api_base_url = self.env['ir.config_parameter'].sudo().get_param('webpos_api.base_url', 'http://localhost:8069')
+        api_url = f'{api_base_url}/webpos_api/test'
+        try:
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()
+            return {"success": True, "message": "Conexión API OK"}
+        except requests.ConnectionError:
+            return {"success": False, "error": "Error de conexión al API (proxy/red)"}
+        except requests.Timeout:
+            return {"success": False, "error": "Timeout al conectar con API"}
+        except requests.HTTPError as e:
+            return {"success": False, "error": f"Error HTTP API: {e}"}
+        except Exception as e:
+            return {"success": False, "error": f"Error inesperado: {e}"}
+
     def doc_type_E(self,doc_string):
         # Verificamos que el string tenga el formato esperado
         if len(doc_string) >= 13:  # E + 10 dígitos

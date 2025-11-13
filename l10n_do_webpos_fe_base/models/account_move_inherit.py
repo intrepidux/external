@@ -205,6 +205,12 @@ class AccountMove(models.Model):
                     
                         execute_EF = invoice.create_xml_data(invoice, xml_data)
                         
+                        # Verificar que todos los impuestos estén verificados para WebPOS
+                        taxes = self.line_ids.tax_ids
+                        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+                        if unverified_taxes:
+                            raise UserError(_('Los siguientes impuestos no están verificados para WebPOS: %s') % ', '.join(unverified_taxes.mapped('name')))                        
+                        
                         #Activar envio diferido, apaga envio automatico  para envaluar documentos antes de ser enviados
                         execute_EF.save_and_send_xml()
                         execute_EF.verify_sent_encf()

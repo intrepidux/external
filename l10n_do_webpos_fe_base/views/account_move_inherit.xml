@@ -79,12 +79,10 @@
                         </field> -->
                     </page>
                 </xpath>
-                <xpath expr="//group[@id='header_left_group']" position="inside"> 
+                <xpath expr="//group[@id='header_left_group']" position="inside">
                     <field name="dgi_status" invisible="not is_ecf_invoice"/>
-
-                    <!--  pendiente exponer es_webpos_diario en el account.move de factura -->
-                    <!-- <field name="dgi_status" attrs="{'invisible': [('is_ecf_invoice', '=', False), ('journal_id.is_webpos', '=', False)]}"/>  -->
-                    
+                    <field name="l10n_do_ecf_sign_date"
+                        invisible="not is_ecf_invoice or not journal_id.is_webpos"/>
                 </xpath>
             </field>
         </record>

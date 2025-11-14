@@ -316,6 +316,28 @@ class MyXMLData(models.Model):
                 self.sts = response_data.get('sts')
                 self.dgi_sts = response_data.get('dgiSts')
                 self.dgi_status = response_data.get('dgiStatus')
+
+                # Update invoice fields for electronic webpos invoices
+                if self.account_move_id and self.account_move_id.is_ecf_invoice and self.account_move_id.journal_id.is_webpos:
+                    invoice_updates = {}
+                    if response_data.get('qrL1'):  # Security code
+                        # Extract code part after the colon
+                        security_code = response_data.get('qrL1').split(': ', 1)[1] if ': ' in response_data.get('qrL1') else response_data.get('qrL1')
+                        invoice_updates['l10n_do_ecf_security_code'] = security_code
+                    if response_data.get('qrL2'):  # Sign date
+                        try:
+                            # Parse the date string to datetime object
+                            from datetime import datetime
+                            # Extract date part after the colon
+                            date_str = response_data.get('qrL2').split(': ', 1)[1] if ': ' in response_data.get('qrL2') else response_data.get('qrL2')
+                            sign_date = datetime.strptime(date_str, '%d-%m-%Y %H:%M:%S')
+                            invoice_updates['l10n_do_ecf_sign_date'] = sign_date
+                        except (ValueError, TypeError, IndexError):
+                            _logger.warning("Could not parse sign date: %s", response_data.get('qrL2'))
+
+                    if invoice_updates:
+                        self.account_move_id.write(invoice_updates)
+                        _logger.info("Updated invoice %s with verification data: %s", self.account_move_id.id, invoice_updates)
             else:
                 self.status = 'error'
                 self.json_response = json.dumps(response_data)

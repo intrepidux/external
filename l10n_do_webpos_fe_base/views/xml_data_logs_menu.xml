@@ -1,54 +1,6 @@
 <odoo>
     <data>
 
-        <!-- View ID for my.xml.data Form View -->
-        <record id="view_my_xml_data_form" model="ir.ui.view">
-            <field name="name">my.xml.data.form</field>
-            <field name="model">my.xml.data</field>
-            <field name="arch" type="xml">
-                <form string="My XML Data Form">
-                    <group>
-                        
-                        <field name="name" />
-                    </group>
-                    <group>
-                        
-                        <field name="xml_data"  />
-                    </group>
-                    <group>
-                        
-                        <field name="status" />
-                    <field name="error"/>
-                    </group>
- 
-                </form>
-  
-            </field>
-        </record>
-
-        <!-- Custom Tree View Definition -->
-        <record id="view_my_xml_data_tree" model="ir.ui.view">
-            <field name="name">my.xml.data.tree</field>
-            <field name="model">my.xml.data</field>
-            <field name="arch" type="xml">
-                <tree>
-                    <field name="name" />
-                    <field name="status" />
-                </tree>
-            </field>
-        </record>
-
-        <!-- Main Menu Definition -->
-        <record id="action_xml_data_logs" model="ir.actions.act_window">
-            <field name="name">Fiscal Printer 2</field>
-            <field name="res_model">my.xml.data</field>
-            <field name="view_mode">tree,form</field>
-
-        </record>
-
-        <menuitem name="XML data logs" id="l10n_do_webpos_fe_base.xml_data_logs" sequence="2" 
-        action="action_xml_data_logs" parent="l10n_do_webpos_fe_base.menu_root"/>
-
         <!-- Custom tree view for account.move with my.xml.data related fields -->
         <record id="view_account_move_webpos_tree" model="ir.ui.view">
             <field name="name">account.move.webpos.tree</field>

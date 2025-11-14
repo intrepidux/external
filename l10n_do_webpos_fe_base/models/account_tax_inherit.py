@@ -12,5 +12,7 @@ class account_journal(models.Model):
     ('4', 'No facturable Hoteles y/o Restaurantes'),
     ('5', '18% + 10% (ITBIS 1 + 10% Ley)'),
     ('6', 'Exento + 10% (Exento + 10% de Ley)'),
-   
+
     ], string='Tipo de Impuesto webpos', default='0', required=True)
+
+    itx_tax_verified = fields.Boolean(string='Verificado para WebPOS', default=False)

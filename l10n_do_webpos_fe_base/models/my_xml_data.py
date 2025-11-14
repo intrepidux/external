@@ -161,7 +161,7 @@ class MyXMLData(models.Model):
 
         # Get the API URL from system parameters or use default
         api_base_url = self.env['ir.config_parameter'].sudo().get_param('webpos_api.base_url', 'http://localhost:8069')
-        api_url = f'{api_base_url}/webpos_api/send_xml'
+        api_url = f'{api_base_url}/send_xml'
         
         # Prepare payload in JSON-RPC format
         payload = {
@@ -242,8 +242,8 @@ class MyXMLData(models.Model):
         
         # Get the API URL from system parameters or use default
         api_base_url = self.env['ir.config_parameter'].sudo().get_param('webpos_api.base_url', 'http://localhost:8069')
-        api_url = f'{api_base_url}/webpos_api/verify_status'
-        
+        api_url = f'{api_base_url}/verify_status'
+
         # Prepare payload in JSON-RPC format
         payload = {
             'jsonrpc': '2.0',
@@ -255,25 +255,25 @@ class MyXMLData(models.Model):
             },
             'id': self.id or 1,
         }
-        
+
         headers = {
             'Content-Type': 'application/json',
         }
-        
+
         try:
             response = requests.post(api_url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             response_jsonrpc = response.json()
-            
-            # Check for JSON-RPC errors
-            if 'error' in response_jsonrpc:
-                error_details = response_jsonrpc['error']
-                _logger.error('API returned JSON-RPC error: %s', error_details)
-                self.status = 'error'
-                raise UserError(_('API Error: %s') % error_details.get('message', 'Unknown JSON-RPC error'))
-            
-            # Process result
+
+            # Extract result from JSON-RPC response
             response_data = response_jsonrpc.get('result')
+
+            # Check for API errors
+            if isinstance(response_data, dict) and 'error' in response_data:
+                error_details = response_data['error']
+                _logger.error('API returned error: %s', error_details)
+                self.status = 'error'
+                raise UserError(_('API Error: %s') % error_details)
             
             if response_data:
                 self.status = 'procesed'
@@ -318,7 +318,7 @@ class MyXMLData(models.Model):
                 self.dgi_status = response_data.get('dgiStatus')
             else:
                 self.status = 'error'
-                self.json_response = json.dumps(response_jsonrpc)
+                self.json_response = json.dumps(response_data)
                 _logger.error('No se recibieron datos en la respuesta de verificación')
                 
         except requests.exceptions.Timeout:
@@ -354,7 +354,7 @@ class MyXMLData(models.Model):
         
         # Get the API URL from system parameters or use default
         api_base_url = self.env['ir.config_parameter'].sudo().get_param('webpos_api.base_url', 'http://localhost:8069')
-        api_url = f'{api_base_url}/webpos_api/generate_xml'
+        api_url = f'{api_base_url}/generate_xml'
 
         # Gather data from the current record and related records
         invoice = self.account_move_id
@@ -433,7 +433,7 @@ class MyXMLData(models.Model):
                 },
                 'invoice_payments_widget': self._serialize_datetime_data(invoice.invoice_payments_widget),
                 'payment_ids': self._serialize_datetime_data(invoice.payment_ids.read()) if invoice.payment_ids else [],
-                'reversed_entry_id': invoice.reversed_entry_id.id if invoice.reversed_entry_id else False,
+                'l10n_do_origin_ncf': invoice.l10n_do_origin_ncf,
                 'debit_origin_id': invoice.debit_origin_id.id if invoice.debit_origin_id else False,
                 'withholded_itbis': getattr(invoice, 'withholded_itbis', 0.0),
                 'income_withholding': getattr(invoice, 'income_withholding', 0.0),
@@ -523,7 +523,7 @@ class MyXMLData(models.Model):
     def test_api_connection(self):
         """Test API connectivity by calling the test endpoint."""
         api_base_url = self.env['ir.config_parameter'].sudo().get_param('webpos_api.base_url', 'http://localhost:8069')
-        api_url = f'{api_base_url}/webpos_api/test'
+        api_url = f'{api_base_url}/test'
         try:
             response = requests.get(api_url, timeout=10)
             response.raise_for_status()

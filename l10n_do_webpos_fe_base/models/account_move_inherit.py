@@ -11,7 +11,6 @@ import logging
 _logger = logging.getLogger(__name__)
 
 import datetime
-# from odoo.addons.l10n_do_webpos_fe_base.utils.xml_base import XmlInterface # Old import, removed as logic moved to webpos_api
 
 
 class AccountMove(models.Model):
@@ -204,12 +203,17 @@ class AccountMove(models.Model):
                     # Llama al método con el contenido XML
                     
                         execute_EF = invoice.create_xml_data(invoice, xml_data)
-                        
+
+                        # Validar regla de negocio: facturas >= 250,000 DOP requieren RNC/Cédula del cliente
+                        if invoice.amount_total >= 250000:
+                            if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
+                                raise UserError(_('Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado.'))
+
                         # Verificar que todos los impuestos estén verificados para WebPOS
                         taxes = self.line_ids.tax_ids
                         unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
                         if unverified_taxes:
-                            raise UserError(_('Los siguientes impuestos no están verificados para WebPOS: %s') % ', '.join(unverified_taxes.mapped('name')))                        
+                            raise UserError(_('Los siguientes impuestos no están verificados para WebPOS: %s') % ', '.join(unverified_taxes.mapped('name')))
                         
                         #Activar envio diferido, apaga envio automatico  para envaluar documentos antes de ser enviados
                         execute_EF.save_and_send_xml()
@@ -401,18 +405,95 @@ class AccountMove(models.Model):
                     }
                 })
 
-            # Determine NCF expiration date with fallback
+            # Determine NCF expiration date with robust handling for all invoice types
             ncf_expiration_date = ''
-            if hasattr(invoice, 'l10n_do_ncf_expiration_date') and invoice.l10n_do_ncf_expiration_date:
-                ncf_expiration_date = invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
-            elif hasattr(invoice, 'ncf_expiration_date') and invoice.ncf_expiration_date:
-                ncf_expiration_date = invoice.ncf_expiration_date.strftime('%Y-%m-%d')
+            original_invoice = None
+
+            # For credit/debit notes, get the expiration date from the original invoice
+            if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
+                original_invoice = invoice.reversed_entry_id
+            elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
+                original_invoice = invoice.debit_origin_id
+
+            # Try to get expiration date from original invoice first (for credit/debit notes)
+            if original_invoice:
+                if hasattr(original_invoice, 'l10n_do_ncf_expiration_date') and original_invoice.l10n_do_ncf_expiration_date:
+                    try:
+                        ncf_expiration_date = original_invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        ncf_expiration_date = ''
+                elif hasattr(original_invoice, 'ncf_expiration_date') and original_invoice.ncf_expiration_date:
+                    try:
+                        ncf_expiration_date = original_invoice.ncf_expiration_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        ncf_expiration_date = ''
+
+            # If no expiration date from original invoice, or for regular invoices, get from current invoice
+            if not ncf_expiration_date:
+                if hasattr(invoice, 'l10n_do_ncf_expiration_date') and invoice.l10n_do_ncf_expiration_date:
+                    try:
+                        ncf_expiration_date = invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        ncf_expiration_date = ''
+                elif hasattr(invoice, 'ncf_expiration_date') and invoice.ncf_expiration_date:
+                    try:
+                        ncf_expiration_date = invoice.ncf_expiration_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        ncf_expiration_date = ''
+                # Additional fallback: try to get from journal
+                elif hasattr(invoice.journal_id, 'l10n_do_ncf_expiration_date') and invoice.journal_id.l10n_do_ncf_expiration_date:
+                    try:
+                        ncf_expiration_date = invoice.journal_id.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        ncf_expiration_date = ''
+
+            # Determine origin NCF and reference date for credit/debit notes
+            # Debug logging for l10n_do_origin_ncf field
+            _logger.error(f"DEBUG: invoice.l10n_do_origin_ncf raw value: {getattr(invoice, 'l10n_do_origin_ncf', 'FIELD_NOT_FOUND')}")
+            _logger.error(f"DEBUG: invoice.l10n_do_origin_ncf type: {type(getattr(invoice, 'l10n_do_origin_ncf', None))}")
+
+            l10n_do_origin_ncf = getattr(invoice, 'l10n_do_origin_ncf', None) or ''
+            # Ensure it's a string
+            if not isinstance(l10n_do_origin_ncf, str):
+                l10n_do_origin_ncf = str(l10n_do_origin_ncf) if l10n_do_origin_ncf is not None else ''
+
+            l10n_do_origin_ncf_date = ''
+            if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
+                l10n_do_origin_ncf = invoice.reversed_entry_id.l10n_latam_document_number or ''
+                if invoice.reversed_entry_id.invoice_date:
+                    # Ensure date is in YYYY-MM-DD format
+                    try:
+                        if isinstance(invoice.reversed_entry_id.invoice_date, str):
+                            # If it's a string, try to parse it or take first 10 chars
+                            l10n_do_origin_ncf_date = invoice.reversed_entry_id.invoice_date[:10]
+                        else:
+                            # If it's a datetime object, format it properly
+                            l10n_do_origin_ncf_date = invoice.reversed_entry_id.invoice_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        # Fallback: use current date if formatting fails
+                        l10n_do_origin_ncf_date = datetime.datetime.now().strftime('%Y-%m-%d')
+            elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
+                l10n_do_origin_ncf = invoice.debit_origin_id.l10n_latam_document_number or ''
+                if invoice.debit_origin_id.invoice_date:
+                    # Ensure date is in YYYY-MM-DD format
+                    try:
+                        if isinstance(invoice.debit_origin_id.invoice_date, str):
+                            # If it's a string, try to parse it or take first 10 chars
+                            l10n_do_origin_ncf_date = invoice.debit_origin_id.invoice_date[:10]
+                        else:
+                            # If it's a datetime object, format it properly
+                            l10n_do_origin_ncf_date = invoice.debit_origin_id.invoice_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        # Fallback: use current date if formatting fails
+                        l10n_do_origin_ncf_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
             # Prepare main invoice record data
             record_data = {
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
                 'l10n_latam_document_number': invoice.l10n_latam_document_number or '',
                 'ncf_expiration_date': ncf_expiration_date,
+                'l10n_do_origin_ncf': l10n_do_origin_ncf,
+                'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,
@@ -491,7 +572,7 @@ class AccountMove(models.Model):
             _logger.info("Calling WebPOS API with type_document: %s", type_document)
             _logger.info("API Request Data: %s", json.dumps(api_data, indent=2))
             
-            response = self._call_webpos_api('/webpos_api/generate_xml', api_data)
+            response = self._call_webpos_api('/generate_xml', api_data)
             
             # Log the full API response
             _logger.info("WebPOS API Response:")
@@ -641,6 +722,8 @@ class AccountMove(models.Model):
 
     def action_verify_sent_encf(self):
         self.xml_data_id.action_verify_sent_encf()
+
+
     # fin mapeo funciones heredadas de xml_data_id
     
 

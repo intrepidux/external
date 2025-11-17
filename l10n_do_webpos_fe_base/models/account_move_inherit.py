@@ -457,35 +457,19 @@ class AccountMove(models.Model):
             if not isinstance(l10n_do_origin_ncf, str):
                 l10n_do_origin_ncf = str(l10n_do_origin_ncf) if l10n_do_origin_ncf is not None else ''
 
+            # Compute l10n_do_origin_ncf_date by searching for the origin invoice
             l10n_do_origin_ncf_date = ''
-            if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
-                l10n_do_origin_ncf = invoice.reversed_entry_id.l10n_latam_document_number or ''
-                if invoice.reversed_entry_id.invoice_date:
-                    # Ensure date is in YYYY-MM-DD format
-                    try:
-                        if isinstance(invoice.reversed_entry_id.invoice_date, str):
-                            # If it's a string, try to parse it or take first 10 chars
-                            l10n_do_origin_ncf_date = invoice.reversed_entry_id.invoice_date[:10]
-                        else:
-                            # If it's a datetime object, format it properly
-                            l10n_do_origin_ncf_date = invoice.reversed_entry_id.invoice_date.strftime('%Y-%m-%d')
-                    except (AttributeError, ValueError, TypeError):
-                        # Fallback: use current date if formatting fails
-                        l10n_do_origin_ncf_date = datetime.datetime.now().strftime('%Y-%m-%d')
-            elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
-                l10n_do_origin_ncf = invoice.debit_origin_id.l10n_latam_document_number or ''
-                if invoice.debit_origin_id.invoice_date:
-                    # Ensure date is in YYYY-MM-DD format
-                    try:
-                        if isinstance(invoice.debit_origin_id.invoice_date, str):
-                            # If it's a string, try to parse it or take first 10 chars
-                            l10n_do_origin_ncf_date = invoice.debit_origin_id.invoice_date[:10]
-                        else:
-                            # If it's a datetime object, format it properly
-                            l10n_do_origin_ncf_date = invoice.debit_origin_id.invoice_date.strftime('%Y-%m-%d')
-                    except (AttributeError, ValueError, TypeError):
-                        # Fallback: use current date if formatting fails
-                        l10n_do_origin_ncf_date = datetime.datetime.now().strftime('%Y-%m-%d')
+            if l10n_do_origin_ncf:
+                credit_origin_id = self.env["account.move"].sudo().search(
+                    [("l10n_latam_document_number", "=", l10n_do_origin_ncf)], limit=1
+                )
+                if credit_origin_id:
+                    # Use the date of the found origin invoice
+                    l10n_do_origin_ncf_date = credit_origin_id.invoice_date.strftime('%Y-%m-%d') if credit_origin_id.invoice_date else ''
+                else:
+                    l10n_do_origin_ncf_date = ''
+            else:
+                l10n_do_origin_ncf_date = ''
 
             # Prepare main invoice record data
             record_data = {

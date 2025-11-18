@@ -389,13 +389,26 @@ class AccountMove(models.Model):
                 for tax in line.tax_ids:
                     line_taxes.append({
                         'name': tax.name or '',
-                        'amount': tax.amount or 0.0
+                        'amount': tax.amount or 0.0,
+                        'itx_tax_included': tax.itx_tax_included or False,
+                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
                     })
+
+                # Adjust price_unit for exclusive pricing if taxes are inclusive
+                adjusted_price_unit = line.price_unit or 0.0
+                if line_taxes and any(tax.get('itx_tax_included', False) for tax in line_taxes):
+                    # Compute exclusive price_unit from inclusive price
+                    # For simplicity, assume single inclusive tax per line
+                    inclusive_tax = next((tax for tax in line_taxes if tax.get('itx_tax_included', False)), None)
+                    if inclusive_tax:
+                        tax_rate = inclusive_tax.get('amount', 0.0) / 100.0
+                        # Formula: exclusive_price = inclusive_price / (1 + tax_rate)
+                        adjusted_price_unit = line.price_unit / (1 + tax_rate) if tax_rate > 0 else line.price_unit
 
                 lines_data.append({
                     'name': line.name or '',
                     'quantity': line.quantity or 0.0,
-                    'price_unit': line.price_unit or 0.0,
+                    'price_unit': adjusted_price_unit,
                     'price_subtotal': line.price_subtotal or 0.0,
                     'price_total': line.price_total or 0.0,
                     'tax_ids': line_taxes,
@@ -478,6 +491,7 @@ class AccountMove(models.Model):
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
+                'l10n_do_income_type':invoice.l10n_do_income_type,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,

@@ -56,5 +56,10 @@
     'website': "https://www.intrepidux.com",
     'category': 'Accounting/Localizations/Account Charts',
     'version': '17.0.0.0.3',
-    'depends': ['base', 'account', 'l10n_do_accounting', 'mail']
+    'depends': ['base', 'account', 'l10n_do_accounting', 'mail', 'l10n_do_fix_report_invoice'],
+    'data': [
+        'security/ir.model.access.csv',
+        'views/views.xml',
+        'data/mail_template_sequence_warning.xml',
+    ],
 }

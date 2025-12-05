@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <template id="report_invoice_document_fix"
+              inherit_id="l10n_do_accounting.report_invoice_document_inherited">
+
+        <xpath expr="//div[@id='right-elements']/parent::*/following-sibling::div[@class='row']" position="replace">
+            <div class="row">
+                <div style=" margin-top: -100px; padding-right: 15px; page-break-inside: avoid;">
+                    <div t-if="o.l10n_do_electronic_stamp" class="col-6" style="display: inline-block">
+                        <div>
+                            <img alt="Barcode" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_electronic_stamp if o.l10n_do_electronic_stamp else ''"/>
+                        </div>
+                        <t t-if="o.l10n_do_ecf_security_code">
+                            <strong>Código de Seguridad:</strong>
+                            <span t-out="o.l10n_do_ecf_security_code"/>
+                        </t>
+                        <br/>
+                        <t t-if="o.l10n_do_ecf_sign_date">
+                            <strong>Fecha Firma Digital:</strong>
+                            <span t-out="o.l10n_do_ecf_sign_date.strftime('%d-%m-%Y %H:%M:%S')"/>
+                        </t>
+                    </div>
+                    <div t-if="is_l10n_do_invoice" class="text-muted text-end col-4"
+                         style="float: right;">
+                    </div>
+                </div>
+            </div>
+        </xpath>
+
+        <xpath expr="//td[@name='td_quantity']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+
+    </template>
+
+</odoo>

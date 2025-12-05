@@ -61,12 +61,12 @@
           <xpath expr="//sheet" position="before">
             <div class="alert alert-warning" role="alert"
                  invisible="sequence_alert_level != 'warning'">
-              <i class="fa fa-exclamation-triangle"></i>
+              <i class="fa fa-exclamation-triangle" title="Advertencia"></i>
               <field name="sequence_alert_message" readonly="1" class="ms-2"/>
             </div>
             <div class="alert alert-danger" role="alert"
                  invisible="sequence_alert_level != 'danger'">
-              <i class="fa fa-exclamation-circle"></i>
+              <i class="fa fa-exclamation-circle" title="Alerta de Peligro"></i>
               <field name="sequence_alert_message" readonly="1" class="ms-2"/>
             </div>
           </xpath>

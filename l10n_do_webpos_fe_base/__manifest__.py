@@ -15,16 +15,16 @@
 
     # always loaded
    'data': [
-         'security/ir.model.access.csv',
-        'views/account_payment_inherit.xml',
+        'security/ir.model.access.csv',
         'views/account_journal_inherit.xml',
-        'views/account_tax_inherit.xml',
-        'views/tipo_pago_webpos.xml', 
-        'views/fe_credentials.xml',
         'views/account_move_inherit.xml',
-        'views/res_company_inherit.xml',
-        'views/xml_data_logs_menu.xml',
+        'views/account_payment_inherit.xml',
+        'views/account_tax_inherit.xml',
+        'views/fe_credentials.xml',
         'views/fe_webpos_navigation.xml',
+        'views/res_company_inherit.xml',
+        'views/tipo_pago_webpos.xml', 
+        'views/xml_data_logs_menu.xml',
         'data/account_webpos_data.xml',
     ],
     # "post_init_hook": "post_init_hook", //revisar maximo recursions en actualizacion odoo sh

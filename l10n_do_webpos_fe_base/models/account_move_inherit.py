@@ -171,11 +171,11 @@ class AccountMove(models.Model):
         # Llamar al método original
         res = super(AccountMove, self).action_post()
         invoice = self.env['account.move'].browse(self.id)
-        _logger.error("<-- print_invoice  action_post()--> %s", invoice) 
+        _logger.error("<-- print_invoice  action_post()--> %s", invoice)
 
 
         # Lógica adicional después de confirmar la factura
-     
+
         for invoice in self:
             _logger.error("<-- print_invoice antes de 108-->")
             _logger.error(f"Debug condition: invoice.is_ecf_invoice = {invoice.is_ecf_invoice}")
@@ -183,47 +183,65 @@ class AccountMove(models.Model):
             _logger.error(f"Debug condition: not invoice.l10n_do_fiscal_number = {not invoice.l10n_do_fiscal_number}")
             _logger.error(f"Debug value : invoice.l10n_do_fiscal_number = {invoice.l10n_do_fiscal_number}")
             _logger.error(f"Debug condition: Full condition result = {(invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_do_fiscal_number)}")
+
+            # Only check document type validation for WebPOS journals
             if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_do_fiscal_number and invoice.journal_id.l10n_latam_use_documents):
-                _logger.error("<-- print_invoice despues de 1108 IF -->")
-                if invoice.move_type in ('out_invoice', 'in_invoice', 'out_refund', 'out_debit'):
-                    doc_type = self.doc_type_E(invoice) # Pass the invoice object
-                    xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
-                    xml_data = xml_content  # Generar el XML
+                # Check if document type is permitted for this WebPOS journal
+                document_type_allowed = False
+                if invoice.l10n_latam_document_type_id and invoice.journal_id.l10n_do_document_type_ids:
+                    allowed_types = invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id')
+                    document_type_allowed = invoice.l10n_latam_document_type_id in allowed_types
+                    _logger.error(f"Debug condition: document_type_allowed = {document_type_allowed}")
+                    _logger.error(f"Document type: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
+                    _logger.error(f"Journal permitted types: {[dt.l10n_do_ncf_type for dt in allowed_types]}")
 
-                    
+                if document_type_allowed:
+                    _logger.error("<-- print_invoice despues de 1108 IF -->")
+                    if invoice.move_type in ('out_invoice', 'in_invoice', 'out_refund', 'out_debit'):
+                        doc_type = self.doc_type_E(invoice) # Pass the invoice object
+                        xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
+                        xml_data = xml_content  # Generar el XML
 
-                
-                    # # Es factura de compras y  no se genera documentos electronico ( venta proveedor)
-                    # if (invoice.move_type in 'in_invoice') and self.doc_type_E(self.l10n_latam_document_number) in ("31","32"):
-                    #     # Es factura de compras y  no se genera documentos electronico ( venta proveedor)
-                    #     # Crear el documento EDI
-                    #     _logger.error("<-- NO GENERA comprobante -->")
-                    # else:
-                    try:
-                    # Llama al método con el contenido XML
-                    
-                        execute_EF = invoice.create_xml_data(invoice, xml_data)
+                        # # Es factura de compras y  no se genera documentos electronico ( venta proveedor)
+                        # if (invoice.move_type in 'in_invoice') and self.doc_type_E(self.l10n_latam_document_number) in ("31","32"):
+                        #     # Es factura de compras y  no se genera documentos electronico ( venta proveedor)
+                        #     # Crear el documento EDI
+                        #     _logger.error("<-- NO GENERA comprobante -->")
+                        # else:
+                        try:
+                            # Llama al método con el contenido XML
+                            execute_EF = invoice.create_xml_data(invoice, xml_data)
 
-                        # Validar regla de negocio: facturas >= 250,000 DOP requieren RNC/Cédula del cliente
-                        if invoice.amount_total >= 250000:
-                            if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
-                                raise UserError(_('Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado.'))
+                            # Validar regla de negocio: facturas >= 250,000 DOP requieren RNC/Cédula del cliente
+                            if invoice.amount_total >= 250000:
+                                if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
+                                    raise UserError(_('Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado.'))
 
-                        # Verificar que todos los impuestos estén verificados para WebPOS
-                        taxes = self.line_ids.tax_ids
-                        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
-                        if unverified_taxes:
-                            raise UserError(_('Los siguientes impuestos no están verificados para WebPOS: %s') % ', '.join(unverified_taxes.mapped('name')))
-                        
-                        #Activar envio diferido, apaga envio automatico  para envaluar documentos antes de ser enviados
-                        execute_EF.save_and_send_xml()
-                        execute_EF.verify_sent_encf()
+                            # Verificar que todos los impuestos estén verificados para WebPOS
+                            taxes = self.line_ids.tax_ids
+                            unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+                            if unverified_taxes:
+                                raise UserError(_('Los siguientes impuestos no están verificados para WebPOS: %s') % ', '.join(unverified_taxes.mapped('name')))
 
-                    except Exception as e:
-                        raise UserError(_('Error al crear el documento Electronico: %s' % str(e)))
-                        
-                    # Print XML to standard output using the new API approach
-                    self.xml_print_to_std(xml_content)
+                            #Activar envio diferido, apaga envio automatico  para envaluar documentos antes de ser enviados
+                            execute_EF.save_and_send_xml()
+                            execute_EF.verify_sent_encf()
+
+                        except Exception as e:
+                            raise UserError(_('Error al crear el documento Electronico: %s' % str(e)))
+
+                        # Print XML to standard output using the new API approach
+                        self.xml_print_to_std(xml_content)
+            else:
+                # Log when API call is skipped
+                if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_do_fiscal_number and invoice.journal_id.l10n_latam_use_documents):
+                    # For WebPOS journals that meet basic criteria but document type is not allowed
+                    _logger.info("WebPOS API call skipped for invoice %s: Document type %s not permitted for journal %s",
+                               invoice.id,
+                               invoice.l10n_latam_document_type_id.l10n_do_ncf_type if invoice.l10n_latam_document_type_id else 'None',
+                               invoice.journal_id.name)
+                else:
+                    _logger.info("WebPOS API call skipped for invoice %s: Document posted for accounting control only", invoice.id)
                 
 
         return res

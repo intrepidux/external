@@ -19,6 +19,7 @@
             <attribute name="class" add="text-nowrap" separator=" "/>
         </xpath>
 
+        <!-- Imporante -->
         <xpath expr="//table[@name='invoice_line_table']" position="attributes">
             <attribute name="style" add="table-layout: fixed;" separator=" "/>
         </xpath>

@@ -33,7 +33,7 @@
         <menuitem
             name="Electronic Invoices"
             id="l10n_do_webpos_fe_base.menu_fe_webpos_invoices"
-            sequence="20"
+            sequence="5"
             parent="l10n_do_webpos_fe_base.menu_root"
             action="action_account_move_webpos"
         />

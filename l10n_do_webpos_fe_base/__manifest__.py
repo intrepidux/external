@@ -11,7 +11,7 @@
     'version': "17.0.1.0.24",
 
     # any module necessary for this one to work correctly
-    'depends': ['base','account','account_debit_note','l10n_do_accounting'],
+    'depends': ['base','account','l10n_do_accounting'],
 
     # always loaded
    'data': [

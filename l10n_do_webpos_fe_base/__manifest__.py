@@ -1,14 +1,14 @@
 {
-    'name': "ITX L10n DO Webpos FE Base",
+    'name': "ITX WebPOS FE Base - República Dominicana",
     'summary': """
-        Integracion facturacion electronica webpos República Dominicana
+        Integración facturación electrónica WebPOS compatible con cualquier localización dominicana
         """,
     'author': "Intrepidux SRL, David Contreras",
     'website': "http://www.intrepidux.com",
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "17.0.1.0.24",
+    'version': "17.0.1.0.25",
 
     # any module necessary for this one to work correctly
     'depends': ['base','account','l10n_do_accounting'],

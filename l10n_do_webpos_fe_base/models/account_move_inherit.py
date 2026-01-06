@@ -99,7 +99,11 @@ class AccountMove(models.Model):
     dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=True)
     dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=True)
     # json_response = fields.Text(related='xml_data_id.json_response', string='Json Response')  # Descomentar si es necesario
-    
+
+    # Campos para facturación electrónica WebPOS
+    l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
+    l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
+
     #fin mapeo campos my.xml.data
 
     def _get_api_base_url(self):
@@ -741,6 +745,47 @@ class AccountMove(models.Model):
 
 
     # fin mapeo funciones heredadas de xml_data_id
+
+
+## REVISAR constraints para evitar duplicado de impuestos en la lineas de factura
+
+# class AccountMoveLine(models.Model):
+#     _inherit = 'account.move.line'
+#     _description = 'Herencia para validar impuestos únicos por grupo en líneas de WebPOS'
+
+#     @api.constrains('tax_ids')
+#     def _check_single_tax_per_group_webpos(self):
+#         """Ensure only one tax per tax_group_id is applied to invoice lines for WebPOS."""
+#         for line in self:
+#             # Only validate for WebPOS journals and when invoice is posted or being posted
+#             if (line.tax_ids and line.move_id and line.move_id.journal_id.is_webpos and
+#                 line.move_id.state in ['posted', 'draft'] and line.display_type == 'product'):
+#                 # Group taxes by tax_group_id
+#                 tax_groups = {}
+#                 for tax in line.tax_ids:
+#                     if tax.tax_group_id:
+#                         group_id = tax.tax_group_id.id
+#                         if group_id not in tax_groups:
+#                             tax_groups[group_id] = []
+#                         tax_groups[group_id].append(tax.name)
+
+#                 # Check for duplicates in any group
+#                 duplicate_groups = []
+#                 for group_id, tax_names in tax_groups.items():
+#                     if len(tax_names) > 1:
+#                         group_name = line.tax_ids.filtered(lambda t: t.tax_group_id.id == group_id)[0].tax_group_id.name
+#                         duplicate_groups.append((group_name, tax_names))
+
+#                 if duplicate_groups:
+#                     error_messages = []
+#                     for group_name, tax_names in duplicate_groups:
+#                         error_messages.append(
+#                             _("Grupo '%s': %s") % (group_name, ', '.join(tax_names))
+#                         )
+#                     raise models.ValidationError(
+#                         _("No puede haber más de un impuesto del mismo grupo por línea en facturas WebPOS:\n%s") %
+#                         '\n'.join(error_messages)
+#                     )
     
 
     # @api.constrains("state", "line_ids", "l10n_latam_document_type_id")

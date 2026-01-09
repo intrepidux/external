@@ -104,7 +104,89 @@ class AccountMove(models.Model):
     l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
     l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
 
+    # Campo para sello electrónico QR WebPOS (related para consistencia)
+    l10n_do_webpos_electronic_stamp = fields.Char(
+        related='xml_data_id.qr_code',
+        string="WebPOS Electronic Stamp",
+        store=True,
+        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)"
+    )
+
+    # Campo computado para compatibilidad con diferentes versiones de l10n_do_accounting
+    l10n_do_fiscal_number = fields.Char(
+        string="Fiscal Number",
+        compute="_compute_l10n_do_fiscal_number",
+        inverse="_inverse_l10n_do_fiscal_number",
+        store=False,  # No almacenar para evitar conflictos
+        help="Computed field for fiscal number compatibility across different l10n_do_accounting versions"
+    )
+
+    # Campo computado para determinar si es factura electrónica (compatible con ambas versiones)
+    is_ecf_invoice = fields.Boolean(
+        string="Is Electronic Invoice",
+        compute="_compute_is_ecf_invoice",
+        store=False,  # No almacenar para compatibilidad
+        help="Computed field to determine if invoice is electronic (e-NCF) based on document type"
+    )
+
     #fin mapeo campos my.xml.data
+
+    def _compute_l10n_do_fiscal_number(self):
+        """Compute l10n_do_fiscal_number based on available fields"""
+        for record in self:
+            # Check if the native l10n_do_fiscal_number field exists (from l10n_do_accounting)
+            if hasattr(record, '_fields') and 'l10n_do_fiscal_number' in record._fields:
+                # If the field exists in the model, it means l10n_do_accounting is installed
+                # Use getattr to safely access it
+                native_value = getattr(record, 'l10n_do_fiscal_number', None)
+                if native_value:
+                    record.l10n_do_fiscal_number = native_value
+                else:
+                    # Fallback to l10n_latam_document_number if native field is empty and available
+                    if hasattr(record, '_fields') and 'l10n_latam_document_number' in record._fields:
+                        record.l10n_do_fiscal_number = getattr(record, 'l10n_latam_document_number', '') or ''
+                    else:
+                        record.l10n_do_fiscal_number = ''
+            else:
+                # If native field doesn't exist, try l10n_latam_document_number
+                if hasattr(record, '_fields') and 'l10n_latam_document_number' in record._fields:
+                    record.l10n_do_fiscal_number = getattr(record, 'l10n_latam_document_number', '') or ''
+                else:
+                    record.l10n_do_fiscal_number = ''
+
+    def _inverse_l10n_do_fiscal_number(self):
+        """Update the appropriate field when l10n_do_fiscal_number is set"""
+        for record in self:
+            # Check if the native l10n_do_fiscal_number field exists and is writable
+            if hasattr(record, '_fields') and 'l10n_do_fiscal_number' in record._fields:
+                field_def = record._fields['l10n_do_fiscal_number']
+                if not field_def.readonly and not field_def.compute:
+                    # If it's a regular field, update it directly
+                    setattr(record, 'l10n_do_fiscal_number', record.l10n_do_fiscal_number)
+                else:
+                    # If it's computed, try to update l10n_latam_document_number instead
+                    record.l10n_latam_document_number = record.l10n_do_fiscal_number
+            else:
+                # If native field doesn't exist, update l10n_latam_document_number
+                record.l10n_latam_document_number = record.l10n_do_fiscal_number
+
+    def _compute_is_ecf_invoice(self):
+        """Compute is_ecf_invoice based on document type (compatible with both versions)"""
+        for record in self:
+            # Check if l10n_latam_document_type_id exists and has doc_code_prefix
+            if (hasattr(record, 'l10n_latam_document_type_id') and
+                record.l10n_latam_document_type_id and
+                hasattr(record.l10n_latam_document_type_id, 'doc_code_prefix')):
+                # If document type code starts with 'E', it's an electronic invoice
+                doc_code = record.l10n_latam_document_type_id.doc_code_prefix or ''
+                record.is_ecf_invoice = doc_code.startswith('E')
+            else:
+                # Fallback: if we can't determine from document type, check company settings
+                # This maintains compatibility with the original Adel logic
+                record.is_ecf_invoice = (
+                    record.company_id.l10n_do_ecf_issuer and
+                    record.country_code == "DO"
+                )
 
     def _get_api_base_url(self):
         """Get the API base URL from system parameters"""
@@ -192,12 +274,34 @@ class AccountMove(models.Model):
             if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_do_fiscal_number and invoice.journal_id.l10n_latam_use_documents):
                 # Check if document type is permitted for this WebPOS journal
                 document_type_allowed = False
-                if invoice.l10n_latam_document_type_id and invoice.journal_id.l10n_do_document_type_ids:
+
+                # Check if l10n_do_document_type_ids field exists (OCA versions)
+                if (hasattr(invoice.journal_id, 'l10n_do_document_type_ids') and
+                    invoice.l10n_latam_document_type_id and invoice.journal_id.l10n_do_document_type_ids):
+                    # OCA version: validate against specific allowed document types
                     allowed_types = invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id')
                     document_type_allowed = invoice.l10n_latam_document_type_id in allowed_types
-                    _logger.error(f"Debug condition: document_type_allowed = {document_type_allowed}")
+                    _logger.error(f"Debug condition: document_type_allowed (OCA) = {document_type_allowed}")
                     _logger.error(f"Document type: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
                     _logger.error(f"Journal permitted types: {[dt.l10n_do_ncf_type for dt in allowed_types]}")
+                elif invoice.l10n_latam_document_type_id and hasattr(invoice.journal_id, '_get_journal_ncf_types'):
+                    # Adel version: use _get_journal_ncf_types method for validation
+                    try:
+                        journal_ncf_types = invoice.journal_id._get_journal_ncf_types(
+                            counterpart_partner=invoice.partner_id
+                        )
+                        document_type_allowed = invoice.l10n_latam_document_type_id.l10n_do_ncf_type in journal_ncf_types
+                        _logger.error(f"Debug condition: document_type_allowed (Adel) = {document_type_allowed}")
+                        _logger.error(f"Document type: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
+                        _logger.error(f"Journal permitted types: {journal_ncf_types}")
+                    except Exception as e:
+                        _logger.error(f"Error checking journal NCF types: {e}")
+                        # If validation fails, allow by default to avoid blocking
+                        document_type_allowed = True
+                else:
+                    # Fallback: if we can't determine, allow by default
+                    document_type_allowed = True
+                    _logger.error("Debug condition: document_type_allowed (fallback) = True")
 
                 if document_type_allowed:
                     _logger.error("<-- print_invoice despues de 1108 IF -->")
@@ -749,43 +853,43 @@ class AccountMove(models.Model):
 
 ## REVISAR constraints para evitar duplicado de impuestos en la lineas de factura
 
-# class AccountMoveLine(models.Model):
-#     _inherit = 'account.move.line'
-#     _description = 'Herencia para validar impuestos únicos por grupo en líneas de WebPOS'
+class AccountMoveLine(models.Model):
+    _inherit = 'account.move.line'
+    _description = 'Herencia para validar impuestos únicos por grupo en líneas de WebPOS'
 
-#     @api.constrains('tax_ids')
-#     def _check_single_tax_per_group_webpos(self):
-#         """Ensure only one tax per tax_group_id is applied to invoice lines for WebPOS."""
-#         for line in self:
-#             # Only validate for WebPOS journals and when invoice is posted or being posted
-#             if (line.tax_ids and line.move_id and line.move_id.journal_id.is_webpos and
-#                 line.move_id.state in ['posted', 'draft'] and line.display_type == 'product'):
-#                 # Group taxes by tax_group_id
-#                 tax_groups = {}
-#                 for tax in line.tax_ids:
-#                     if tax.tax_group_id:
-#                         group_id = tax.tax_group_id.id
-#                         if group_id not in tax_groups:
-#                             tax_groups[group_id] = []
-#                         tax_groups[group_id].append(tax.name)
+    @api.constrains('tax_ids')
+    def _check_single_tax_per_group_webpos(self):
+        """Ensure only one tax per tax_group_id is applied to invoice lines for WebPOS."""
+        for line in self:
+            # Only validate for WebPOS journals and when invoice is posted or being posted
+            if (line.tax_ids and line.move_id and line.move_id.journal_id.is_webpos and
+                line.move_id.state in ['posted', 'draft'] and line.display_type == 'product'):
+                # Group taxes by tax_group_id
+                tax_groups = {}
+                for tax in line.tax_ids:
+                    if tax.tax_group_id:
+                        group_id = tax.tax_group_id.id
+                        if group_id not in tax_groups:
+                            tax_groups[group_id] = []
+                        tax_groups[group_id].append(tax.name)
 
-#                 # Check for duplicates in any group
-#                 duplicate_groups = []
-#                 for group_id, tax_names in tax_groups.items():
-#                     if len(tax_names) > 1:
-#                         group_name = line.tax_ids.filtered(lambda t: t.tax_group_id.id == group_id)[0].tax_group_id.name
-#                         duplicate_groups.append((group_name, tax_names))
+                # Check for duplicates in any group
+                duplicate_groups = []
+                for group_id, tax_names in tax_groups.items():
+                    if len(tax_names) > 1:
+                        group_name = line.tax_ids.filtered(lambda t: t.tax_group_id.id == group_id)[0].tax_group_id.name
+                        duplicate_groups.append((group_name, tax_names))
 
-#                 if duplicate_groups:
-#                     error_messages = []
-#                     for group_name, tax_names in duplicate_groups:
-#                         error_messages.append(
-#                             _("Grupo '%s': %s") % (group_name, ', '.join(tax_names))
-#                         )
-#                     raise models.ValidationError(
-#                         _("No puede haber más de un impuesto del mismo grupo por línea en facturas WebPOS:\n%s") %
-#                         '\n'.join(error_messages)
-#                     )
+                if duplicate_groups:
+                    error_messages = []
+                    for group_name, tax_names in duplicate_groups:
+                        error_messages.append(
+                            _("Grupo '%s': %s") % (group_name, ', '.join(tax_names))
+                        )
+                    raise models.ValidationError(
+                        _("No puede haber más de un impuesto del mismo grupo por línea en facturas WebPOS:\n%s") %
+                        '\n'.join(error_messages)
+                    )
     
 
     # @api.constrains("state", "line_ids", "l10n_latam_document_type_id")

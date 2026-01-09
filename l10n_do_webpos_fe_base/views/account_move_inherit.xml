@@ -80,6 +80,7 @@
                     </page>
                 </xpath>
                 <xpath expr="//group[@id='header_left_group']" position="inside">
+                    <field name="is_ecf_invoice" invisible="1"/>
                     <field name="dgi_status" invisible="not is_ecf_invoice"/>
                     <field name="l10n_do_ecf_sign_date"
                         invisible="not is_ecf_invoice or not journal_id.is_webpos"/>

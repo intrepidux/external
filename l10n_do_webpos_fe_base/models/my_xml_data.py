@@ -335,6 +335,7 @@ class MyXMLData(models.Model):
                         except (ValueError, TypeError, IndexError):
                             _logger.warning("Could not parse sign date: %s", response_data.get('qrL2'))
 
+
                     if invoice_updates:
                         self.account_move_id.write(invoice_updates)
                         _logger.info("Updated invoice %s with verification data: %s", self.account_move_id.id, invoice_updates)

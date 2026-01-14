@@ -1,6 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+        <!-- Action for manual WebPOS resend -->
+        <record id="action_manual_resend_webpos" model="ir.actions.server">
+            <field name="name">Reenviar Documento WebPOS</field>
+            <field name="model_id" ref="account.model_account_move"/>
+            <field name="binding_model_id" ref="account.model_account_move"/>
+            <field name="binding_view_types">form</field>
+            <field name="state">code</field>
+            <field name="code">
+# Available variables:
+#  - env: Odoo Environment
+#  - model: Account Move model
+#  - records: Account Move records (selected records)
+#  - data: Wizard data (if applicable)
+
+# Check if user has admin privileges
+if not env.user.has_group('base.group_system'):
+    raise Warning('Solo los administradores pueden ejecutar esta acción.')
+
+# Check if any records are selected
+if not records:
+    raise Warning('Debe seleccionar al menos una factura.')
+
+# Validate selected records
+valid_records = records.filtered(lambda r: r.is_ecf_invoice and r.journal_id.is_webpos and r.state == 'posted')
+if not valid_records:
+    raise Warning('Solo se pueden reenviar facturas electrónicas publicadas en diarios WebPOS.')
+
+invalid_records = records - valid_records
+if invalid_records:
+    invalid_names = ', '.join(invalid_records.mapped('name'))
+    raise Warning(f'Las siguientes facturas no son elegibles: {invalid_names}')
+
+# Show confirmation dialog
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Confirmar Reenvío WebPOS',
+    'res_model': 'webpos.resend.confirmation.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {
+        'default_invoice_ids': valid_records.ids,
+        'default_message': f'Se reenviarán {len(valid_records)} factura(s) a WebPOS. ¿Continuar?'
+    }
+}
+            </field>
+            <field name="groups_id" eval="[(4, ref('base.group_system'))]"/>
+        </record>
         <!-- <record id="itx_account_move_inherit" model="ir.ui.view">
             <field name="name">itx.account.move.inherit</field>
             <field name="model">account.move</field>
@@ -81,19 +128,42 @@
                 </xpath>
                 <xpath expr="//group[@id='header_left_group']" position="inside">
                     <field name="is_ecf_invoice" invisible="1"/>
-                    <field name="dgi_status" invisible="not is_ecf_invoice"/>
+                    <field name="dgi_status" invisible="not is_ecf_invoice or not journal_id.is_webpos"/>
                     <field name="l10n_do_ecf_sign_date"
                         invisible="not is_ecf_invoice or not journal_id.is_webpos"/>
                 </xpath>
+
             </field>
         </record>
 
-
-
-
-
-
-
+        <!-- Wizard view for WebPOS resend confirmation -->
+        <record id="view_webpos_resend_confirmation_wizard" model="ir.ui.view">
+            <field name="name">webpos.resend.confirmation.wizard.form</field>
+            <field name="model">webpos.resend.confirmation.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Confirmar Reenvío WebPOS">
+                    <div class="alert alert-warning" role="alert">
+                        <strong>⚠️ Acción Técnica</strong><br/>
+                        Esta acción solo debe ser ejecutada por administradores del sistema.
+                        Reenviar documentos a WebPOS puede afectar el estado fiscal de las facturas.
+                    </div>
+                    <group>
+                        <field name="message" readonly="1" widget="text"/>
+                        <field name="invoice_ids" readonly="1" widget="many2many_tags">
+                            <tree>
+                                <field name="name"/>
+                                <field name="l10n_latam_document_number"/>
+                                <field name="partner_id"/>
+                            </tree>
+                        </field>
+                    </group>
+                    <footer>
+                        <button name="action_confirm_resend" string="Confirmar y Reenviar" type="object" class="btn-primary"/>
+                        <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
 
     </data>
 </odoo>

@@ -335,6 +335,18 @@ class AccountMove(models.Model):
                             execute_EF.save_and_send_xml()
                             execute_EF.verify_sent_encf()
 
+                            # After successful sending, consume sequence and update document number
+                            if inv.l10n_latam_document_number.startswith("TEMP-"):
+                                document_number = inv.l10n_do_fiscal_sequence_id.get_fiscal_number()
+                                inv.write({
+                                    "l10n_latam_document_number": document_number,
+                                    "payment_reference": f'{inv.name} - {document_number}',
+                                })
+                                # Update XML data name
+                                if inv.xml_data_id:
+                                    inv.xml_data_id.name = document_number
+                                _logger.info(f"Consumed sequence and updated document number for WebPOS ECF invoice {inv.id}")
+
                         except Exception as e:
                             raise UserError(_('Error al crear el documento Electronico: %s' % str(e)))
 

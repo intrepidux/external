@@ -235,11 +235,15 @@ class AccountMove(models.Model):
                 if (hasattr(invoice.journal_id, 'l10n_do_document_type_ids') and
                     invoice.l10n_latam_document_type_id and invoice.journal_id.l10n_do_document_type_ids):
                     # OCA version: validate against specific allowed document types
-                    allowed_types = invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id')
-                    document_type_allowed = invoice.l10n_latam_document_type_id in allowed_types
+                    # Compare IDs instead of objects for better reliability
+                    allowed_type_ids = invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id.id')
+                    document_type_allowed = invoice.l10n_latam_document_type_id.id in allowed_type_ids
                     _logger.error(f"Debug condition: document_type_allowed (OCA) = {document_type_allowed}")
-                    _logger.error(f"Document type: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
-                    _logger.error(f"Journal permitted types: {[dt.l10n_do_ncf_type for dt in allowed_types]}")
+                    _logger.error(f"Document type ID: {invoice.l10n_latam_document_type_id.id}")
+                    _logger.error(f"Document type code: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
+                    _logger.error(f"Document type name: {invoice.l10n_latam_document_type_id.name}")
+                    _logger.error(f"Journal permitted type IDs: {allowed_type_ids}")
+                    _logger.error(f"Journal permitted types: {[dt.l10n_do_ncf_type for dt in invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id')]}")
                 elif invoice.l10n_latam_document_type_id and hasattr(invoice.journal_id, '_get_journal_ncf_types'):
                     # Adel version: use _get_journal_ncf_types method for validation
                     try:
@@ -292,16 +296,16 @@ class AccountMove(models.Model):
                             execute_EF.verify_sent_encf()
 
                             # After successful sending, consume sequence and update document number
-                            if inv.l10n_latam_document_number.startswith("TEMP-"):
-                                document_number = inv.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                                inv.write({
+                            if invoice.l10n_latam_document_number.startswith("TEMP-"):
+                                document_number = invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
+                                invoice.write({
                                     "l10n_latam_document_number": document_number,
-                                    "payment_reference": f'{inv.name} - {document_number}',
+                                    "payment_reference": f'{invoice.name} - {document_number}',
                                 })
                                 # Update XML data name
-                                if inv.xml_data_id:
-                                    inv.xml_data_id.name = document_number
-                                _logger.info(f"Consumed sequence and updated document number for WebPOS ECF invoice {inv.id}")
+                                if invoice.xml_data_id:
+                                    invoice.xml_data_id.name = document_number
+                                _logger.info(f"Consumed sequence and updated document number for WebPOS ECF invoice {invoice.id}")
 
                         except Exception as e:
                             raise UserError(_('Error al crear el documento Electronico: %s' % str(e)))
@@ -814,6 +818,74 @@ class AccountMove(models.Model):
 
     def action_verify_sent_encf(self):
         self.xml_data_id.action_verify_sent_encf()
+
+    def action_manual_resend_webpos(self):
+        """
+        Manual action to resend WebPOS documents that were not processed initially.
+        This method performs the complete WebPOS sending process:
+        1. Validates invoice eligibility
+        2. Creates XML data if it doesn't exist
+        3. Sends XML to WebPOS API
+        4. Verifies the sent document
+        """
+        self.ensure_one()
+
+        # Validate invoice eligibility for WebPOS
+        if not (self.is_ecf_invoice and self.journal_id.is_webpos and self.l10n_do_fiscal_number and self.journal_id.l10n_latam_use_documents):
+            raise UserError(_('Esta factura no es elegible para envío WebPOS. Debe ser una factura electrónica en un diario WebPOS con número fiscal válido.'))
+
+        # Check document type validation
+        document_type_allowed = False
+        if (hasattr(self.journal_id, 'l10n_do_document_type_ids') and
+            self.l10n_latam_document_type_id and self.journal_id.l10n_do_document_type_ids):
+            # Compare IDs instead of objects for better reliability
+            allowed_type_ids = self.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id.id')
+            document_type_allowed = self.l10n_latam_document_type_id.id in allowed_type_ids
+
+        if not document_type_allowed:
+            raise UserError(_('El tipo de documento %s no está permitido en el diario %s.') % (self.l10n_latam_document_type_id.name, self.journal_id.name))
+
+        try:
+            # Create XML data if it doesn't exist
+            if not self.xml_data_id:
+                _logger.info("Creating XML data for manual WebPOS resend of invoice %s", self.id)
+                doc_type = self.doc_type_E(self)
+                xml_content, xml_name = self.build_xml_to_print(self, doc_type)
+
+                xml_data = self.env['my.xml.data'].create({
+                    'name': self.l10n_latam_document_number,
+                    'xml_data': xml_content,
+                    'account_move_id': self.id,
+                    'status': 'pending',
+                })
+                self.xml_data_id = xml_data.id
+            else:
+                _logger.info("Using existing XML data for manual WebPOS resend of invoice %s", self.id)
+
+            # Send XML to WebPOS
+            _logger.info("Sending XML to WebPOS for invoice %s", self.id)
+            self.xml_data_id.save_and_send_xml()
+
+            # Verify sent document
+            _logger.info("Verifying sent document for invoice %s", self.id)
+            self.xml_data_id.verify_sent_encf()
+
+            # Log success
+            _logger.info("Manual WebPOS resend completed successfully for invoice %s", self.id)
+
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Éxito'),
+                    'message': _('Documento reenviado exitosamente a WebPOS.'),
+                    'type': 'success',
+                }
+            }
+
+        except Exception as e:
+            _logger.error("Error in manual WebPOS resend for invoice %s: %s", self.id, str(e))
+            raise UserError(_('Error al reenviar documento a WebPOS: %s') % str(e))
 
 
     # fin mapeo funciones heredadas de xml_data_id

@@ -9,3 +9,4 @@ from . import fe_credential #pendiente a actualizar
 from . import my_xml_data #pendiente a actualizar
 from . import res_company_inherit
 from . import account_journal_inherit
+from . import webpos_resend_wizard

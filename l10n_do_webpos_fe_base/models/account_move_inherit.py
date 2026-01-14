@@ -112,14 +112,7 @@ class AccountMove(models.Model):
         help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)"
     )
 
-    # Campo computado para compatibilidad con diferentes versiones de l10n_do_accounting
-    l10n_do_fiscal_number = fields.Char(
-        string="Fiscal Number",
-        compute="_compute_l10n_do_fiscal_number",
-        inverse="_inverse_l10n_do_fiscal_number",
-        store=False,  # No almacenar para evitar conflictos
-        help="Computed field for fiscal number compatibility across different l10n_do_accounting versions"
-    )
+
 
     # Campo computado para determinar si es factura electrónica (compatible con ambas versiones)
     is_ecf_invoice = fields.Boolean(
@@ -131,44 +124,7 @@ class AccountMove(models.Model):
 
     #fin mapeo campos my.xml.data
 
-    def _compute_l10n_do_fiscal_number(self):
-        """Compute l10n_do_fiscal_number based on available fields"""
-        for record in self:
-            # Check if the native l10n_do_fiscal_number field exists (from l10n_do_accounting)
-            if hasattr(record, '_fields') and 'l10n_do_fiscal_number' in record._fields:
-                # If the field exists in the model, it means l10n_do_accounting is installed
-                # Use getattr to safely access it
-                native_value = getattr(record, 'l10n_do_fiscal_number', None)
-                if native_value:
-                    record.l10n_do_fiscal_number = native_value
-                else:
-                    # Fallback to l10n_latam_document_number if native field is empty and available
-                    if hasattr(record, '_fields') and 'l10n_latam_document_number' in record._fields:
-                        record.l10n_do_fiscal_number = getattr(record, 'l10n_latam_document_number', '') or ''
-                    else:
-                        record.l10n_do_fiscal_number = ''
-            else:
-                # If native field doesn't exist, try l10n_latam_document_number
-                if hasattr(record, '_fields') and 'l10n_latam_document_number' in record._fields:
-                    record.l10n_do_fiscal_number = getattr(record, 'l10n_latam_document_number', '') or ''
-                else:
-                    record.l10n_do_fiscal_number = ''
 
-    def _inverse_l10n_do_fiscal_number(self):
-        """Update the appropriate field when l10n_do_fiscal_number is set"""
-        for record in self:
-            # Check if the native l10n_do_fiscal_number field exists and is writable
-            if hasattr(record, '_fields') and 'l10n_do_fiscal_number' in record._fields:
-                field_def = record._fields['l10n_do_fiscal_number']
-                if not field_def.readonly and not field_def.compute:
-                    # If it's a regular field, update it directly
-                    setattr(record, 'l10n_do_fiscal_number', record.l10n_do_fiscal_number)
-                else:
-                    # If it's computed, try to update l10n_latam_document_number instead
-                    record.l10n_latam_document_number = record.l10n_do_fiscal_number
-            else:
-                # If native field doesn't exist, update l10n_latam_document_number
-                record.l10n_latam_document_number = record.l10n_do_fiscal_number
 
     def _compute_is_ecf_invoice(self):
         """Compute is_ecf_invoice based on document type (compatible with both versions)"""

@@ -9,7 +9,6 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='active']" position="after">
                     <field name="tipo_impuesto_webpos" />
-                    <field name="itx_tax_included" />
                     <field name="itx_tax_verified" />                    
                 </xpath>
             </field>

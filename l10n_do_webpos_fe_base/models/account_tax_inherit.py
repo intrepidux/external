@@ -16,4 +16,3 @@ class account_journal(models.Model):
     ], string='Tipo de Impuesto webpos', default='0', required=True)
 
     itx_tax_verified = fields.Boolean(string='Verificado para WebPOS', default=False)
-    itx_tax_included = fields.Boolean(string='Precio incluye impuesto (WebPOS)', default=False, help='Indica si este impuesto genera precios inclusive en las líneas de productos')

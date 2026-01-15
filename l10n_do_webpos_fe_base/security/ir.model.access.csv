@@ -4,4 +4,3 @@ access_tipopagos_webpos,access_l10n_do_webpos_fe_base,model_tipopago_webpos,base
 access_webpos_order_new,access_webpos_order_ncf_temp,model_itx_fe_webpos,base.group_user,1,0,1,1
 access_webpos_order_xml_new,access_webpos_order_ncf_temp,model_my_xml_data,base.group_user,1,1,1,1
 access_tipopagos_webpos_new,access_l10n_do_webpos_fe_base,model_tipopago_webpos,base.group_user,1,0,1,1
-access_webpos_resend_wizard,access_webpos_resend_wizard,model_webpos_resend_confirmation_wizard,base.group_system,1,1,1,0

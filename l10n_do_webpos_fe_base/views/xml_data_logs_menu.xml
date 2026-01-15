@@ -8,6 +8,7 @@
             <field name="arch" type="xml">
                 <tree>
                     <field name="name"/>
+                    <field name="l10n_latam_document_number"/>
                     <field name="journal_id"/>
                     <field name="partner_id"/>
                     <field name="invoice_date"/>
@@ -26,7 +27,7 @@
             <field name="res_model">account.move</field>
             <field name="view_mode">tree,form</field>
             <field name="view_id" ref="view_account_move_webpos_tree"/>
-            <field name="domain">[("journal_id.is_webpos", "=", True)]</field>
+            <field name="domain">[("journal_id.is_webpos", "=", True), ("is_ecf_invoice", "=", True)]</field>
         </record>
 
         <!-- Update the Electronic Invoices menu to use the new action -->

@@ -126,7 +126,6 @@ class AccountMove(models.Model):
 
 
 
-    def _compute_is_ecf_invoice(self):
         """Compute is_ecf_invoice based on document type (compatible with both versions)"""
         for record in self:
             # Check if l10n_latam_document_type_id exists and has doc_code_prefix
@@ -488,20 +487,22 @@ class AccountMove(models.Model):
                     line_taxes.append({
                         'name': tax.name or '',
                         'amount': tax.amount or 0.0,
-                        'itx_tax_included': tax.itx_tax_included or False,
+                        'price_include': tax.price_include or False,
                         'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
                     })
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
                 adjusted_price_unit = line.price_unit or 0.0
-                if line_taxes and any(tax.get('itx_tax_included', False) for tax in line_taxes):
+                if line_taxes and any(tax.get('price_include', False) for tax in line_taxes):
                     # Compute exclusive price_unit from inclusive price
                     # For simplicity, assume single inclusive tax per line
-                    inclusive_tax = next((tax for tax in line_taxes if tax.get('itx_tax_included', False)), None)
+                    inclusive_tax = next((tax for tax in line_taxes if tax.get('price_include', False)), None)
                     if inclusive_tax:
                         tax_rate = inclusive_tax.get('amount', 0.0) / 100.0
                         # Formula: exclusive_price = inclusive_price / (1 + tax_rate)
                         adjusted_price_unit = line.price_unit / (1 + tax_rate) if tax_rate > 0 else line.price_unit
+
+
 
                 lines_data.append({
                     'name': line.name or '',
@@ -598,8 +599,6 @@ class AccountMove(models.Model):
                 'reversed_entry_id': invoice.reversed_entry_id.id if invoice.reversed_entry_id else None,
                 'debit_origin_id': invoice.debit_origin_id.id if invoice.debit_origin_id else None,
                 'lines': lines_data,
-                'withholded_itbis': getattr(invoice, 'withholded_itbis', 0.0),
-                'income_withholding': getattr(invoice, 'income_withholding', 0.0),
                 'aditional_info_invoice_header1': getattr(invoice, 'aditional_info_invoice_header1', ''),
                 'aditional_info_invoice_header2': getattr(invoice, 'aditional_info_invoice_header2', ''),
             }
@@ -930,9 +929,7 @@ class AccountMoveLine(models.Model):
                         _("No puede haber más de un impuesto del mismo grupo por línea en facturas WebPOS:\n%s") %
                         '\n'.join(error_messages)
                     )
-    
 
-    # @api.constrains("state", "line_ids", "l10n_latam_document_type_id")
     # def _check_special_exempt(self):
     #     """ Validates that an invoice with a Special Tax Payer type does not contain
     #         nor ITBIS or ISC.

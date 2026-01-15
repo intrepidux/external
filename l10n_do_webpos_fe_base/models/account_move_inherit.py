@@ -126,6 +126,7 @@ class AccountMove(models.Model):
 
 
 
+    def _compute_is_ecf_invoice(self):
         """Compute is_ecf_invoice based on document type (compatible with both versions)"""
         for record in self:
             # Check if l10n_latam_document_type_id exists and has doc_code_prefix

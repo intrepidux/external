@@ -219,18 +219,15 @@ class AccountMove(models.Model):
         # Lógica adicional después de confirmar la factura
 
         for invoice in self:
-            # Get fiscal number with fallback for compatibility between localizations
-            fiscal_number = getattr(invoice, 'l10n_do_fiscal_number', None) or invoice.l10n_latam_document_number
-
             _logger.error("<-- print_invoice antes de 108-->")
             _logger.error(f"Debug condition: invoice.is_ecf_invoice = {invoice.is_ecf_invoice}")
             _logger.error(f"Debug condition: invoice.journal_id.is_webpos = {invoice.journal_id.is_webpos}")
-            _logger.error(f"Debug condition: not fiscal_number = {not fiscal_number}")
-            _logger.error(f"Debug value : fiscal_number = {fiscal_number}")
-            _logger.error(f"Debug condition: Full condition result = {(invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (fiscal_number)}")
+            _logger.error(f"Debug condition: not invoice.l10n_latam_document_number = {not invoice.l10n_latam_document_number}")
+            _logger.error(f"Debug value : invoice.l10n_latam_document_number = {invoice.l10n_latam_document_number}")
+            _logger.error(f"Debug condition: Full condition result = {(invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_latam_document_number)}")
 
             # Only check document type validation for WebPOS journals
-            if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (fiscal_number and invoice.journal_id.l10n_latam_use_documents):
+            if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_latam_document_number and invoice.journal_id.l10n_latam_use_documents):
                 # Check if document type is permitted for this WebPOS journal
                 document_type_allowed = False
 
@@ -317,7 +314,7 @@ class AccountMove(models.Model):
                         self.xml_print_to_std(xml_content)
             else:
                 # Log when API call is skipped
-                if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (fiscal_number and invoice.journal_id.l10n_latam_use_documents):
+                if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_latam_document_number and invoice.journal_id.l10n_latam_use_documents):
                     # For WebPOS journals that meet basic criteria but document type is not allowed
                     _logger.info("WebPOS API call skipped for invoice %s: Document type %s not permitted for journal %s",
                                invoice.id,
@@ -642,14 +639,11 @@ class AccountMove(models.Model):
             _logger.info("Company: %s", invoice.company_id.name)
             _logger.info("Partner: %s", invoice.partner_id.name)
             
-            # Get fiscal number with fallback for compatibility between localizations
-            fiscal_number = getattr(invoice, 'l10n_do_fiscal_number', None) or invoice.l10n_latam_document_number
-
             # Log invoice conditions
             _logger.info("Invoice Conditions:")
             _logger.info("Is ECF Invoice: %s", invoice.is_ecf_invoice)
             _logger.info("Journal is WebPOS: %s", invoice.journal_id.is_webpos)
-            _logger.info("Fiscal Number: %s", fiscal_number)
+            _logger.info("Fiscal Number: %s", invoice.l10n_latam_document_number)
             _logger.info("Journal Uses Documents: %s", invoice.journal_id.l10n_latam_use_documents)
             
             # Prepare invoice data for the API
@@ -836,11 +830,8 @@ class AccountMove(models.Model):
         """
         self.ensure_one()
 
-        # Get fiscal number with fallback for compatibility between localizations
-        fiscal_number = getattr(self, 'l10n_do_fiscal_number', None) or self.l10n_latam_document_number
-
         # Validate invoice eligibility for WebPOS
-        if not (self.is_ecf_invoice and self.journal_id.is_webpos and fiscal_number and self.journal_id.l10n_latam_use_documents):
+        if not (self.is_ecf_invoice and self.journal_id.is_webpos and self.l10n_latam_document_number and self.journal_id.l10n_latam_use_documents):
             raise UserError(_('Esta factura no es elegible para envío WebPOS. Debe ser una factura electrónica en un diario WebPOS con número fiscal válido.'))
 
         # Check document type validation

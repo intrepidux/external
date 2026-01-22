@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-
-
         <record id="tipo_pago_efectivo" model="tipopago.webpos">
             <field name="code_payment_webpos">01</field>
             <field name="name_payment_webpos">Efectivo</field>
@@ -42,12 +40,12 @@
             <field name="code_payment_webpos">08</field>
             <field name="name_payment_webpos">Otras Formas de pago</field>
         </record>
+    </data>
 
+    <data noupdate="1">
         <record id="webpos_api_base_url" model="ir.config_parameter">
             <field name="key">webpos_api.base_url</field>
             <field name="value">https://api.intrepidux.com/webpos</field>
         </record>
-
-
     </data>
 </odoo>

@@ -444,12 +444,16 @@ class AccountMove(models.Model):
             for line in invoice.invoice_line_ids:
                 line_taxes = []
                 for tax in line.tax_ids:
-                    line_taxes.append({
+                    tax_data = {
                         'name': tax.name or '',
                         'amount': tax.amount or 0.0,
                         'price_include': tax.price_include or False,
                         'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
-                    })
+                    }
+                    # Map tipo_impuesto_webpos exclusively for ITBIS taxes (group "ITBIS" and positive amount)
+                    if tax.tax_group_id.name == 'ITBIS' and tax.amount > 0:
+                        tax_data['tipo_impuesto_webpos_itbis'] = tax.tipo_impuesto_webpos
+                    line_taxes.append(tax_data)
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
                 adjusted_price_unit = line.price_unit or 0.0

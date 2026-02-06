@@ -8,7 +8,7 @@
             <field name="type">form</field>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='active']" position="after">
-                    <field name="tipo_impuesto_webpos" />
+                    <field name="tipo_impuesto_webpos" invisible="tax_group_id != %(l10n_do_accounting.tax_group_itbis)d" />
                     <field name="itx_tax_verified" />                    
                 </xpath>
             </field>

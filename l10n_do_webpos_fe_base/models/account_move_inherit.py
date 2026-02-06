@@ -17,66 +17,50 @@ class AccountMove(models.Model):
     _inherit = 'account.move'
     _description = 'Herencia para editar el post de la factura webpos'
 
-    # Mapping of Odoo NCF types/move types to WebPOS API document types
-    # This combines both the short codes and the numeric codes for clarity
-    # Updated based on actual example XML files from Ejemplos_api_webpos folder
+    # Mapeo actualizado para 2026
+    E_CF_VENTAS = ["31", "32", "44", "45", "46"]
+    E_CF_COMPRAS = ["41", "43", "47"]
+    E_CF_AJUSTES = ["33", "34"]
+
     _API_DOCUMENT_TYPE_MAP = {
-        # Fiscal Document Types (Official DGII B Series) - Aligned with E series
-        'B01': 'FF', # Comprobante de Crédito Fiscal (B01) -> FF (same as E31)
-        'B02': 'FC', # Comprobante para Consumidor Final (B02) -> FC (same as E32)
-        'B03': 'D', # Comprobante de Débito (B03) -> DD (same as E33)
-        'B04': 'C', # Comprobante de Crédito (B04) -> CC (same as E34)
-        
-        # Special Comprobantes (Official DGII B Series) - Aligned with E series
-        'B11': 'P',   # Comprobante de Compras (B11) -> P (same as E41)
-        'B12': 'RUI', # Comprobante de Registro Único de Ingresos (B12) -> RUI (unique, no E equivalent)
-        'B13': 'E',   # Comprobante para Gastos Menores (B13) -> E (same as E43)
-        'B14': 'FE',  # Comprobante para Regímenes Especiales (B14) -> FE (same as E44)
-        'B15': 'FG',  # Comprobante Gubernamental (B15) -> FG (same as E45)
-        'B16': 'FX',  # Comprobante para Exportaciones (B16) -> FX (same as E46)
-        'B17': 'PY',  # Comprobante para Pagos al Exterior (B17) -> PY (same as E47)
-
-        # Electronic Document Types (e-NCF) - Updated based on example XML files
-        'E31': 'FF', # Factura de Crédito Fiscal Electrónica -> FF (confirmed)
-        'E32': 'FC', # Factura de Consumo Electrónica -> FC (confirmed)
-        'E33': 'D',  # Nota de Débito Electrónica 
-        'E34': 'C',  # Nota de Crédito Electrónica
-        'E41': 'P',  # Comprobante de Compras Electrónico -> P (confirmed)
-        'E43': 'E',  # Gastos Menores Electrónico -> E (updated from 'FE')
-        'E44': 'FE', # Regímenes Especiales Electrónico -> FE (updated from 'PY')
-        'E45': 'FG', # Gubernamental Electrónico -> FG (updated from 'FX')
-        'E46': 'FX', # Factura de Exportación Electrónica -> FX (updated from 'E')
-        'E47': 'PY', # Pagos al Exterior Electrónico -> PY (updated from 'FG')
-
-        # Numeric codes mapped to alphanumeric for API compatibility - Updated
-        '31': 'FF',
-        '32': 'FC',
-        '33': 'D', 
-        '34': 'C',
-        '41': 'P',
-        '43': 'E',  # Updated to match E43
-        '44': 'FE', # Updated to match E44
-        '45': 'FG', # Updated to match E45
-        '46': 'FX', # Updated to match E46
-        '47': 'PY', # Updated to match E47
-
-        # Standalone alphanumeric codes (for direct API compatibility) - Updated
-        'FF': 'FF',
-        'FC': 'FC',
-        'D': 'D',  
-        'C': 'C', 
-        'P': 'P',
-        'E': 'E',
-        'FE': 'FE',
-        'FG': 'FG',
-        'FX': 'FX',
-        'PY': 'PY',
-
-        # Odoo Move Types fallback (for cases where NCF might not be set yet or is generic)
-        'out_invoice': 'FF', # Default for sales invoices (assume fiscal unless specified by NCF)
-        'out_refund': 'C',  # Default for credit notes 
-        'out_debit': 'D',   # Default for debit notes 
-        'in_invoice': 'P',   # Default for purchase invoices (though typically no e-CF for these)
+        # Electronic Document Types (e-NCF)
+        "E31": "FF",
+        "E32": "FC",
+        "E33": "D",
+        "E34": "C",
+        "E41": "P",
+        "E43": "E",
+        "E44": "FE",
+        "E45": "FG",
+        "E46": "FX",
+        "E47": "PY",
+        # Códigos numéricos
+        "31": "FF",
+        "32": "FC",
+        "33": "D",
+        "34": "C",
+        "41": "P",
+        "43": "E",
+        "44": "FE",
+        "45": "FG",
+        "46": "FX",
+        "47": "PY",
+        # Códigos alfanuméricos
+        "FF": "FF",
+        "FC": "FC",
+        "D": "D",
+        "C": "C",
+        "P": "P",
+        "E": "E",
+        "FE": "FE",
+        "FG": "FG",
+        "FX": "FX",
+        "PY": "PY",
+        # Fallbacks
+        "out_invoice": "FF",
+        "out_refund": "C",
+        "out_debit": "D",
+        "in_invoice": "P",
     }
 
 
@@ -209,120 +193,95 @@ class AccountMove(models.Model):
         return xml_data
 
 
+    def _is_l10n_do_webpos_allowed_document(self):
+        self.ensure_one()
+        # Si no es factura electrónica o no tiene número de documento, no está permitida
+        if not self.is_ecf_invoice or not self.l10n_latam_document_number:
+            return False
+
+        # Extraer el tipo (ej. '31' de 'E310000000005')
+        # El tipo son los dos dígitos después de la 'E'
+        tipo_ecf = self.l10n_latam_document_number[1:3]
+        flujo = "ventas" if self.move_type.startswith("out_") else "compras"
+
+        if flujo == "ventas":
+            # Ventas directas + Notas de crédito/débito que afecten ventas
+            return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES
+        elif flujo == "compras":
+            # Compras (remitidas en 606) + Notas que afecten gastos
+            return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
+        return False
+
     def action_post(self):
-        # Llamar al método original
         res = super(AccountMove, self).action_post()
-        invoice = self.env['account.move'].browse(self.id)
-        _logger.error("<-- print_invoice  action_post()--> %s", invoice)
-
-
-        # Lógica adicional después de confirmar la factura
 
         for invoice in self:
-            _logger.error("<-- print_invoice antes de 108-->")
-            _logger.error(f"Debug condition: invoice.is_ecf_invoice = {invoice.is_ecf_invoice}")
-            _logger.error(f"Debug condition: invoice.journal_id.is_webpos = {invoice.journal_id.is_webpos}")
-            _logger.error(f"Debug condition: not invoice.l10n_latam_document_number = {not invoice.l10n_latam_document_number}")
-            _logger.error(f"Debug value : invoice.l10n_latam_document_number = {invoice.l10n_latam_document_number}")
-            _logger.error(f"Debug condition: Full condition result = {(invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_latam_document_number)}")
-
-            # Only check document type validation for WebPOS journals
-            if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_latam_document_number and invoice.journal_id.l10n_latam_use_documents):
-                # Check if document type is permitted for this WebPOS journal
-                document_type_allowed = False
-
-                # Check if l10n_do_document_type_ids field exists (OCA versions)
-                if (hasattr(invoice.journal_id, 'l10n_do_document_type_ids') and
-                    invoice.l10n_latam_document_type_id and invoice.journal_id.l10n_do_document_type_ids):
-                    # OCA version: validate against specific allowed document types
-                    # Compare IDs instead of objects for better reliability
-                    allowed_type_ids = invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id.id')
-                    document_type_allowed = invoice.l10n_latam_document_type_id.id in allowed_type_ids
-                    _logger.error(f"Debug condition: document_type_allowed (OCA) = {document_type_allowed}")
-                    _logger.error(f"Document type ID: {invoice.l10n_latam_document_type_id.id}")
-                    _logger.error(f"Document type code: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
-                    _logger.error(f"Document type name: {invoice.l10n_latam_document_type_id.name}")
-                    _logger.error(f"Journal permitted type IDs: {allowed_type_ids}")
-                    _logger.error(f"Journal permitted types: {[dt.l10n_do_ncf_type for dt in invoice.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id')]}")
-                elif invoice.l10n_latam_document_type_id and hasattr(invoice.journal_id, '_get_journal_ncf_types'):
-                    # Adel version: use _get_journal_ncf_types method for validation
-                    try:
-                        journal_ncf_types = invoice.journal_id._get_journal_ncf_types(
-                            counterpart_partner=invoice.partner_id
-                        )
-                        document_type_allowed = invoice.l10n_latam_document_type_id.l10n_do_ncf_type in journal_ncf_types
-                        _logger.error(f"Debug condition: document_type_allowed (Adel) = {document_type_allowed}")
-                        _logger.error(f"Document type: {invoice.l10n_latam_document_type_id.l10n_do_ncf_type}")
-                        _logger.error(f"Journal permitted types: {journal_ncf_types}")
-                    except Exception as e:
-                        _logger.error(f"Error checking journal NCF types: {e}")
-                        # If validation fails, allow by default to avoid blocking
-                        document_type_allowed = True
-                else:
-                    # Fallback: if we can't determine, allow by default
-                    document_type_allowed = True
-                    _logger.error("Debug condition: document_type_allowed (fallback) = True")
-
-                if document_type_allowed:
-                    _logger.error("<-- print_invoice despues de 1108 IF -->")
-                    if invoice.move_type in ('out_invoice', 'in_invoice', 'out_refund', 'out_debit'):
-                        doc_type = self.doc_type_E(invoice) # Pass the invoice object
+            if (
+                invoice.is_ecf_invoice
+                and invoice.journal_id.is_webpos
+                and invoice.l10n_latam_document_number
+                and invoice.journal_id.l10n_latam_use_documents
+            ):
+                if invoice._is_l10n_do_webpos_allowed_document():
+                    if invoice.move_type in (
+                        "out_invoice",
+                        "in_invoice",
+                        "out_refund",
+                        "out_debit",
+                    ):
+                        doc_type = self.doc_type_E(invoice)
                         xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
-                        xml_data = xml_content  # Generar el XML
-
-                        # # Es factura de compras y  no se genera documentos electronico ( venta proveedor)
-                        # if (invoice.move_type in 'in_invoice') and self.doc_type_E(self.l10n_latam_document_number) in ("31","32"):
-                        #     # Es factura de compras y  no se genera documentos electronico ( venta proveedor)
-                        #     # Crear el documento EDI
-                        #     _logger.error("<-- NO GENERA comprobante -->")
-                        # else:
+                        xml_data = xml_content
                         try:
-                            # Llama al método con el contenido XML
                             execute_EF = invoice.create_xml_data(invoice, xml_data)
-
-                            # Validar regla de negocio: facturas >= 250,000 DOP requieren RNC/Cédula del cliente
                             if invoice.amount_total >= 250000:
                                 if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
-                                    raise UserError(_('Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado.'))
-
-                            # Verificar que todos los impuestos estén verificados para WebPOS
+                                    raise UserError(
+                                        _(
+                                            "Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado."
+                                        )
+                                    )
                             taxes = self.line_ids.tax_ids
                             unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
                             if unverified_taxes:
-                                raise UserError(_('Los siguientes impuestos no están verificados para WebPOS: %s') % ', '.join(unverified_taxes.mapped('name')))
-
-                            #Activar envio diferido, apaga envio automatico  para envaluar documentos antes de ser enviados
+                                raise UserError(
+                                    _(
+                                        "Los siguientes impuestos no están verificados para WebPOS: %s"
+                                    )
+                                    % ", ".join(unverified_taxes.mapped("name"))
+                                )
                             execute_EF.save_and_send_xml()
                             execute_EF.verify_sent_encf()
-
-                            # After successful sending, consume sequence and update document number
                             if invoice.l10n_latam_document_number.startswith("TEMP-"):
-                                document_number = invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                                invoice.write({
-                                    "l10n_latam_document_number": document_number,
-                                    "payment_reference": f'{invoice.name} - {document_number}',
-                                })
-                                # Update XML data name
+                                document_number = (
+                                    invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
+                                )
+                                invoice.write(
+                                    {
+                                        "l10n_latam_document_number": document_number,
+                                        "payment_reference": f"{invoice.name} - {document_number}",
+                                    }
+                                )
                                 if invoice.xml_data_id:
                                     invoice.xml_data_id.name = document_number
-                                _logger.info(f"Consumed sequence and updated document number for WebPOS ECF invoice {invoice.id}")
-
                         except Exception as e:
-                            raise UserError(_('Error al crear el documento Electronico: %s' % str(e)))
-
-                        # Print XML to standard output using the new API approach
+                            raise UserError(
+                                _("Error al crear el documento Electronico: %s" % str(e))
+                            )
                         self.xml_print_to_std(xml_content)
-            else:
-                # Log when API call is skipped
-                if (invoice.is_ecf_invoice and invoice.journal_id.is_webpos) and (invoice.l10n_latam_document_number and invoice.journal_id.l10n_latam_use_documents):
-                    # For WebPOS journals that meet basic criteria but document type is not allowed
-                    _logger.info("WebPOS API call skipped for invoice %s: Document type %s not permitted for journal %s",
-                               invoice.id,
-                               invoice.l10n_latam_document_type_id.l10n_do_ncf_type if invoice.l10n_latam_document_type_id else 'None',
-                               invoice.journal_id.name)
                 else:
-                    _logger.info("WebPOS API call skipped for invoice %s: Document posted for accounting control only", invoice.id)
-                
+                    _logger.info(
+                        "WebPOS API call skipped for invoice %s: Document type %s not allowed for current flow.",
+                        invoice.id,
+                        invoice.l10n_latam_document_number[1:3]
+                        if invoice.l10n_latam_document_number
+                        else "N/A",
+                    )
+            else:
+                _logger.info(
+                    "WebPOS API call skipped for invoice %s: Not an eligible ECF WebPOS document, or posted for accounting control only.",
+                    invoice.id,
+                )
 
         return res
 
@@ -834,16 +793,21 @@ class AccountMove(models.Model):
         if not (self.is_ecf_invoice and self.journal_id.is_webpos and self.l10n_latam_document_number and self.journal_id.l10n_latam_use_documents):
             raise UserError(_('Esta factura no es elegible para envío WebPOS. Debe ser una factura electrónica en un diario WebPOS con número fiscal válido.'))
 
-        # Check document type validation
-        document_type_allowed = False
-        if (hasattr(self.journal_id, 'l10n_do_document_type_ids') and
-            self.l10n_latam_document_type_id and self.journal_id.l10n_do_document_type_ids):
-            # Compare IDs instead of objects for better reliability
-            allowed_type_ids = self.journal_id.l10n_do_document_type_ids.mapped('l10n_latam_document_type_id.id')
-            document_type_allowed = self.l10n_latam_document_type_id.id in allowed_type_ids
-
-        if not document_type_allowed:
-            raise UserError(_('El tipo de documento %s no está permitido en el diario %s.') % (self.l10n_latam_document_type_id.name, self.journal_id.name))
+        # Check document type validation using the new unified method
+        if not self._is_l10n_do_webpos_allowed_document():
+            raise UserError(
+                _(
+                    "El tipo de documento %s (%s) no está permitido en el diario %s para el flujo de %s."
+                )
+                % (
+                    self.l10n_latam_document_type_id.name,
+                    self.l10n_latam_document_number[1:3]
+                    if self.l10n_latam_document_number
+                    else "N/A",
+                    self.journal_id.name,
+                    "ventas" if self.move_type.startswith("out_") else "compras",
+                )
+            )
 
         try:
             # Create XML data if it doesn't exist

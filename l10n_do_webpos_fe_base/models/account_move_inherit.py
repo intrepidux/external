@@ -75,6 +75,17 @@ class AccountMove(models.Model):
 
     xml_data_id = fields.Many2one('my.xml.data', string='My XML Data')
 
+    l10n_do_itbis_tax_group_id = fields.Many2one(
+        'account.tax.group',
+        string='ITBIS Tax Group',
+        compute='_compute_l10n_do_itbis_tax_group_id'
+    )
+
+    def _compute_l10n_do_itbis_tax_group_id(self):
+        itbis_group = self.env.ref('l10n_do.tax_group_itbis', raise_if_not_found=False)
+        for record in self:
+            record.l10n_do_itbis_tax_group_id = itbis_group
+
     # campos de my.xml.data mapeo
     # Los campos serán accesibles a través de my_xml_data_id
     xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=True)
@@ -215,7 +226,13 @@ class AccountMove(models.Model):
     def action_post(self):
         res = super(AccountMove, self).action_post()
 
-        for invoice in self:
+        invoices = self.env['account.move'].browse(self.ids)
+        
+
+
+        # Lógica adicional después de confirmar la factura
+
+        for invoice in invoices:
             if (
                 invoice.is_ecf_invoice
                 and invoice.journal_id.is_webpos

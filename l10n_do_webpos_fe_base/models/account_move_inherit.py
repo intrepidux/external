@@ -448,15 +448,41 @@ class AccountMove(models.Model):
             for line in invoice.invoice_line_ids:
                 line_taxes = []
                 for tax in line.tax_ids:
+                    _logger.error("="*60)
+                    _logger.error("TAX DEBUG:")
+                    _logger.error(f"  Tax name: {tax.name}")
+                    _logger.error(f"  Tax amount: {tax.amount}")
+                    _logger.error(f"  Tax group: {tax.tax_group_id}")
+                    _logger.error(f"  Tax group name: {tax.tax_group_id.name if tax.tax_group_id else 'None'}")
+                    _logger.error(f"  Tipo_impuesto_webpos: {getattr(tax, 'tipo_impuesto_webpos', 'NO_EXISTE')}")
+                    
                     tax_data = {
                         'name': tax.name or '',
                         'amount': tax.amount or 0.0,
                         'price_include': tax.price_include or False,
-                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
+                        'tax_group_id': [tax.tax_group_id.id, tax.tax_group_id.name] if tax.tax_group_id else False,
                     }
+                    
+                    # Log condition evaluation
+                    has_group = bool(tax.tax_group_id)
+                    group_name_upper = tax.tax_group_id.name.upper() if tax.tax_group_id else ''
+                    has_itbis = 'ITBIS' in group_name_upper if tax.tax_group_id else False
+                    is_positive = tax.amount > 0
+                    
+                    _logger.error(f"  Condiciones:")
+                    _logger.error(f"    - has_group: {has_group}")
+                    _logger.error(f"    - group_name_upper: {group_name_upper}")
+                    _logger.error(f"    - has_itbis: {has_itbis}")
+                    _logger.error(f"    - is_positive: {is_positive}")
+                    _logger.error(f"    - ALL CONDITIONS: {has_group and has_itbis and is_positive}")
+                    
                     # Map tipo_impuesto_webpos exclusively for ITBIS taxes (group "ITBIS" and positive amount)
-                    if tax.tax_group_id.name == 'ITBIS' and tax.amount > 0:
-                        tax_data['tipo_impuesto_webpos_itbis'] = tax.tipo_impuesto_webpos
+                    if has_group and has_itbis and is_positive:
+                        tax_data['tipo_impuesto_webpos'] = tax.tipo_impuesto_webpos
+                        _logger.error(f"  ✓ APLICADO tipo_impuesto_webpos = {tax.tipo_impuesto_webpos}")
+                    else:
+                        _logger.error(f"  ✗ NO aplicado")
+                    
                     line_taxes.append(tax_data)
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive

@@ -414,7 +414,8 @@ class MyXMLData(models.Model):
                     'name': tax.name,
                     'amount': tax.amount,
                     'price_include': tax.price_include,
-                    'tax_scope': getattr(tax, 'tax_scope', ''),  # Use getattr in case field doesn't exist
+                    'tax_scope': getattr(tax, 'tax_scope', ''),
+                    'tipo_impuesto_webpos': getattr(tax, 'tipo_impuesto_webpos', None),  # AGREGAR
                 }
                 line_data['tax_ids'].append(tax_data)
             

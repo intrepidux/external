@@ -1,12 +1,41 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models, api
+from odoo import models, api, _
 import logging
 
 _logger = logging.getLogger(__name__)
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+
+    # Override field to make it editable for WebPOS invoices
+    l10n_do_ecf_modification_code = fields.Selection(
+        selection="_get_l10n_do_ecf_modification_code",
+        string="e-CF Modification Code",
+        copy=False,
+        readonly=False,  # Changed from True to allow manual selection for WebPOS
+    )
+
+    def _get_l10n_do_ecf_modification_code(self):
+        """ Return the list of e-CF modification codes required by DGII.
+            For WebPOS journals, only codes 1 and 3 are allowed.
+        """
+        # Check if this invoice is from a WebPOS journal
+        if self.journal_id and getattr(self.journal_id, 'is_webpos', False):
+            _logger.info("DEBUG: WebPOS journal detected - limiting modification codes to 1 and 3")
+            return [
+                ("1", _("01 - Cancelación Total")),  # Total Cancellation
+                ("3", _("03 - Corrección de Monto")),  # Amount Correction
+            ]
+        
+        # Return all codes for non-WebPOS journals
+        return [
+            ("1", _("01 - Cancelación Total")),  # Total Cancellation
+            ("2", _("02 - Corrección de Texto")),  # Text Correction
+            ("3", _("03 - Corrección de Monto")),  # Amount Correction
+            ("4", _("04 - Reemplazo de NCF Emitido en Contingencia")),  # NCF Replacement Issued in Contingency
+            ("5", _("05 - Referencia a Factura Electrónica de Consumidor Final")),  # Reference Electronic Consumer Invoice
+        ]
 
     def _is_manual_document_number(self):
 

@@ -206,8 +206,8 @@ class AccountMove(models.Model):
 
     def _is_l10n_do_webpos_allowed_document(self):
         self.ensure_one()
-        # Si no es factura electrónica o no tiene número de documento, no está permitida
-        if not self.is_ecf_invoice or not self.l10n_latam_document_number:
+        # Si no es factura electrónica o no tiene número de documento o no es diario webpos, no está permitida
+        if not self.is_ecf_invoice or not self.l10n_latam_document_number or not self.journal_id.is_webpos:
             return False
 
         # Extraer el tipo (ej. '31' de 'E310000000005')
@@ -233,72 +233,62 @@ class AccountMove(models.Model):
         # Lógica adicional después de confirmar la factura
 
         for invoice in invoices:
-            if (
-                invoice.is_ecf_invoice
-                and invoice.journal_id.is_webpos
-                and invoice.l10n_latam_document_number
-                and invoice.journal_id.l10n_latam_use_documents
-            ):
-                if invoice._is_l10n_do_webpos_allowed_document():
-                    if invoice.move_type in (
-                        "out_invoice",
-                        "in_invoice",
-                        "out_refund",
-                        "out_debit",
-                    ):
-                        doc_type = self.doc_type_E(invoice)
-                        xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
-                        xml_data = xml_content
-                        try:
-                            execute_EF = invoice.create_xml_data(invoice, xml_data)
-                            if invoice.amount_total >= 250000:
-                                if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
-                                    raise UserError(
-                                        _(
-                                            "Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado."
-                                        )
-                                    )
-                            taxes = self.line_ids.tax_ids
-                            unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
-                            if unverified_taxes:
+            _logger.info("=" * 50)
+            _logger.info("=" * 50)
+            _logger.error("invoice_id: %s, is_ecf:%s, is_webpos: %s, latam_document: %s", invoice,invoice.is_ecf_invoice, invoice.journal_id.is_webpos, invoice.l10n_latam_document_number) 
+            _logger.info("=" * 50)
+            _logger.info("=" * 50)
+
+            if invoice._is_l10n_do_webpos_allowed_document():
+
+                    doc_type = self.doc_type_E(invoice)
+                    xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
+                    xml_data = xml_content
+                    try:
+                        execute_EF = invoice.create_xml_data(invoice, xml_data)
+                        if invoice.amount_total >= 250000:
+                            if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
                                 raise UserError(
                                     _(
-                                        "Los siguientes impuestos no están verificados para WebPOS: %s"
+                                        "Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado."
                                     )
-                                    % ", ".join(unverified_taxes.mapped("name"))
                                 )
-                            execute_EF.save_and_send_xml()
-                            execute_EF.verify_sent_encf()
-                            if invoice.l10n_latam_document_number.startswith("TEMP-"):
-                                document_number = (
-                                    invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                                )
-                                invoice.write(
-                                    {
-                                        "l10n_latam_document_number": document_number,
-                                        "payment_reference": f"{invoice.name} - {document_number}",
-                                    }
-                                )
-                                if invoice.xml_data_id:
-                                    invoice.xml_data_id.name = document_number
-                        except Exception as e:
+                        taxes = self.line_ids.tax_ids
+                        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+                        if unverified_taxes:
                             raise UserError(
-                                _("Error al crear el documento Electronico: %s" % str(e))
+                                _(
+                                    "Los siguientes impuestos no están verificados para WebPOS: %s"
+                                )
+                                % ", ".join(unverified_taxes.mapped("name"))
                             )
-                        self.xml_print_to_std(xml_content)
-                else:
-                    _logger.info(
-                        "WebPOS API call skipped for invoice %s: Document type %s not allowed for current flow.",
-                        invoice.id,
-                        invoice.l10n_latam_document_number[1:3]
-                        if invoice.l10n_latam_document_number
-                        else "N/A",
-                    )
+                        execute_EF.save_and_send_xml()
+                        execute_EF.verify_sent_encf()
+                        if invoice.l10n_latam_document_number.startswith("TEMP-"):
+                            document_number = (
+                                invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
+                            )
+                            invoice.write(
+                                {
+                                    "l10n_latam_document_number": document_number,
+                                    "payment_reference": f"{invoice.name} - {document_number}",
+                                }
+                            )
+                            if invoice.xml_data_id:
+                                invoice.xml_data_id.name = document_number
+                    except Exception as e:
+                        raise UserError(
+                            _("Error al crear el documento Electronico: %s" % str(e))
+                        )
+                    self.xml_print_to_std(xml_content)
             else:
                 _logger.info(
-                    "WebPOS API call skipped for invoice %s: Not an eligible ECF WebPOS document, or posted for accounting control only.",
+                    "WebPOS API call skipped for invoice %s: Document type %s not allowed for current flow.",
                     invoice.id,
+                    invoice.l10n_latam_document_number[1:3]
+                    
                 )
+
 
         return res
 
@@ -308,10 +298,7 @@ class AccountMove(models.Model):
         
                
         invoice = self.env['account.move'].browse(self.id)
-        _logger.error("<-- print_invoice 888-->")
-        _logger.error("<-- print_invoice 888-->")
-        _logger.error("<-- print_invoice 888-->")
-        _logger.error("<-- print_invoice 888-->")
+
 
         # _logger.error("<-- print_invoice --> %s", invoice) 
 

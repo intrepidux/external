@@ -584,7 +584,8 @@ class AccountMove(models.Model):
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
-                'l10n_do_income_type':invoice.l10n_do_income_type,
+                'l10n_do_income_type': invoice.l10n_do_income_type or '01',
+                'l10n_do_ecf_modification_code': invoice.l10n_do_ecf_modification_code or '',
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,
@@ -596,6 +597,9 @@ class AccountMove(models.Model):
                 'aditional_info_invoice_header1': getattr(invoice, 'aditional_info_invoice_header1', ''),
                 'aditional_info_invoice_header2': getattr(invoice, 'aditional_info_invoice_header2', ''),
             }
+            
+            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", 
+                        invoice.l10n_do_ecf_modification_code)
 
             def clean_dates(obj):
                 if isinstance(obj, dict):

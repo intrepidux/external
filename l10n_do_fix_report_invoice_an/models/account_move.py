@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models, api, _
+from odoo import fields,models, api, _
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -8,11 +8,12 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    # Override field to make it editable for WebPOS invoices
     l10n_do_ecf_modification_code = fields.Selection(
         selection="_get_l10n_do_ecf_modification_code",
         string="e-CF Modification Code",
         copy=False,
-        readonly=False,
+        readonly=False,  # Changed from True to allow manual selection for WebPOS
     )
 
     def _get_l10n_do_ecf_modification_code(self):

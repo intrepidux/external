@@ -8,12 +8,11 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    # Override field to make it editable for WebPOS invoices
     l10n_do_ecf_modification_code = fields.Selection(
         selection="_get_l10n_do_ecf_modification_code",
         string="e-CF Modification Code",
         copy=False,
-        readonly=False,  # Changed from True to allow manual selection for WebPOS
+        readonly=False,
     )
 
     def _get_l10n_do_ecf_modification_code(self):

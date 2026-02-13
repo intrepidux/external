@@ -1,4 +1,3 @@
-
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
 import logging
@@ -14,46 +13,60 @@ class account_payment(models.Model):
         string="Tipo de pago",
         required=False,
         compute='_compute_type_payment_id',
-        #default=lambda self: self.env.ref('l10n_do_webpos_fe_base.tipo_pago_efectivo').id
+        # store=True  # Se recomienda dejarlo sin store si causa problemas en la instalación
     )
-
 
     @api.depends('journal_id')
     def _compute_type_payment_id(self):
-
-            journal_id = self["journal_id"].id
-            journal = self.env['account.journal'].browse(journal_id)
-            self.type_payment_id = self._get_payment_type_id(journal) if self._get_payment_type_id(journal) else self.env.ref('l10n_do_webpos_fe_base.tipo_pago_efectivo').id
-
-
-           
+        for rec in self:
+            journal = rec.journal_id
+            payment_type_id = rec._get_payment_type_id(journal)
+            if payment_type_id:
+                rec.type_payment_id = payment_type_id
+            else:
+                # Fallback seguro: busca el código '01' (Efectivo) en lugar de usar env.ref
+                efectivo = self.env['tipopago.webpos'].search([('code_payment_webpos', '=', '01')], limit=1)
+                rec.type_payment_id = efectivo.id if efectivo else False
 
     def _get_payment_type_id(self, journal):
         """Devuelve el ID del tipo de pago basado en el Diario (journal)."""
-        payment_type_map = {
-            'cash': 'l10n_do_webpos_fe_base.tipo_pago_efectivo',
-            'bank': 'l10n_do_webpos_fe_base.tipo_pago_cheque',
-            'card': 'l10n_do_webpos_fe_base.tipo_pago_tdcd',
-            'credit': 'l10n_do_webpos_fe_base.tipo_pago_cr',
-            'swap': 'l10n_do_webpos_fe_base.tipo_pago_permuta',
-            'bond': 'l10n_do_webpos_fe_base.tipo_pago_vc',
-            'others': 'l10n_do_webpos_fe_base.tipo_pago_ot'
+        
+        # Mapeo original (Referencia):
+        # payment_type_map =>
+        #     'cash': 'l10n_do_webpos_fe_base.tipo_pago_efectivo',
+        #     'bank': 'l10n_do_webpos_fe_base.tipo_pago_cheque',
+        #     'card': 'l10n_do_webpos_fe_base.tipo_pago_tdcd',
+        #     'credit': 'l10n_do_webpos_fe_base.tipo_pago_cr',
+        #     'swap': 'l10n_do_webpos_fe_base.tipo_pago_permuta',
+        #     'bond': 'l10n_do_webpos_fe_base.tipo_pago_vc',
+        #     'others': 'l10n_do_webpos_fe_base.tipo_pago_ot'
+        
+        if not journal or not journal.l10n_do_payment_form:
+            return False
+
+        # Mapeo ajustado a códigos técnicos de WebPOS (01-08)
+        payment_code_map = {
+            'cash': '01',
+            'bank': '02',
+            'card': '03',
+            'credit': '04',
+            'bond': '05',
+            'swap': '06',
+            'others': '08'
         }
         
-        tipo_pago = payment_type_map.get(journal.l10n_do_payment_form)
-        return self.env.ref(tipo_pago).id if tipo_pago else None
-
+        code = payment_code_map.get(journal.l10n_do_payment_form)
+        if code:
+            # Búsqueda por código en lugar de env.ref para evitar errores de caché/instalación
+            tipo = self.env['tipopago.webpos'].search([('code_payment_webpos', '=', code)], limit=1)
+            return tipo.id if tipo else False
+        return False
 
     @api.model
     def update_payment_defaults(self):
-        payments = self.search([])
-        _logger.info("XXXXXXXXXXXXXXACTUALIZAR %s ACTUALIZARXXXXXXXXXXXXXXXX",payments)
+        payments = self.search([('type_payment_id', '=', False)])
+        _logger.info("XXXXXXXXXXXXXX ACTUALIZANDO %s PAGOS SIN TIPO XXXXXXXXXXXXXX", len(payments))
         for payment in payments:
-            journal_id = payment.journal_id.id
-            if journal_id:
-                journal = self.env['account.journal'].browse(journal_id)
-                payment_type_id = self._get_payment_type_id(journal)
-                if payment_type_id:
-                    payment.type_payment_id = payment_type_id
-
-
+            payment_type_id = self._get_payment_type_id(payment.journal_id)
+            if payment_type_id:
+                payment.type_payment_id = payment_type_id

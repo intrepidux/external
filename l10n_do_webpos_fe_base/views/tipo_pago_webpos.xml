@@ -21,17 +21,17 @@
             <field name="name">Tipo de pagos</field>
             <field name="model">tipopago.webpos</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="code_payment_webpos" />
                     <field name="name_payment_webpos" />
-                </tree>
+                </list>
             </field>
         </record>
 
         <record id="l10n_do_webpos_fe_base.action_list_type_payment" model="ir.actions.act_window">
             <field name="name">Tipo de pagos</field>
             <field name="res_model">tipopago.webpos</field>            
-            <field name="view_mode">tree,form</field>                     
+            <field name="view_mode">list,form</field>                     
         </record>
     
         <menuitem

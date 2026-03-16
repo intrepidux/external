@@ -1,12 +1,12 @@
 <odoo>
     <data>
 
-        <!-- Custom tree view for account.move with my.xml.data related fields -->
+        <!-- Custom list view for account.move with my.xml.data related fields -->
         <record id="view_account_move_webpos_tree" model="ir.ui.view">
-            <field name="name">account.move.webpos.tree</field>
+            <field name="name">account.move.webpos.list</field>
             <field name="model">account.move</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="name"/>
                     <field name="l10n_latam_document_number"/>
                     <field name="journal_id"/>
@@ -17,15 +17,15 @@
                     <field name="status"/>
                     <field name="dgi_status"/>
                     <field name="dgi_err_msg"/>
-                </tree>
+                </list>
             </field>
         </record>
 
-        <!-- Update the action to use the new tree view -->
+        <!-- Update the action to use the new list view -->
         <record id="action_account_move_webpos" model="ir.actions.act_window">
             <field name="name">Electronic Invoices (WebPOS)</field>
             <field name="res_model">account.move</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="view_id" ref="view_account_move_webpos_tree"/>
             <field name="domain">[("journal_id.is_webpos", "=", True), ("is_ecf_invoice", "=", True)]</field>
         </record>

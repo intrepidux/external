@@ -2,7 +2,7 @@
 <odoo>
 
     <template id="report_invoice_document_fix"
-              inherit_id="l10n_do_accounting_indexa.report_invoice_document_inherited">
+              inherit_id="l10n_do_accounting.report_invoice_document_inherited">
 
 
 

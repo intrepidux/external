@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     'name': "Dominican Republic - Sequence Control and Alerts",
 
@@ -55,7 +54,7 @@
     'author': "David Contreras (Garibaldy)",
     'website': "https://www.intrepidux.com",
     'category': 'Accounting/Localizations/Account Charts',
-    'version': '17.0.0.0.3',
+    'version': "18.0.1.0.0",
     'depends': ['base', 'account', 'l10n_do_accounting', 'mail', 'l10n_do_fix_report_invoice'],
     'data': [
         'security/ir.model.access.csv',

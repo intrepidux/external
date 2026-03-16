@@ -2,7 +2,7 @@
 <odoo>
 
     <template id="report_invoice_document_fix"
-              inherit_id="l10n_do_accounting.report_invoice_document_inherited">
+              inherit_id="l10n_do_accounting_indexa.report_invoice_document_inherited">
 
 
 
@@ -52,9 +52,15 @@
 
     </template>
 
-    <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting.external_layout_standard_inherited">
+    <!--
+        Fix para Odoo 18: El layout externo ha cambiado.
+        En Odoo 18, web.external_layout_standard ya no tiene div[@class='text-center'].
+        Ahora se debe heredar directamente de web.external_layout_standard
+        y usar el xpath correcto para el footer.
+    -->
+    <template id="external_layout_standard_inherited" inherit_id="web.external_layout_standard">
 
-        <xpath expr="//div[@class='text-center']" position="before">
+        <xpath expr="//div[hasclass('o_footer_content')]" position="inside">
             <div t-if="o and 'l10n_do_electronic_stamp' in o and o.l10n_do_electronic_stamp" style="text-align: left; margin-bottom: 10px;">
                 <div style="display: inline-block; vertical-align: top;">
                     <img alt="Barcode" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_electronic_stamp if o.l10n_do_electronic_stamp else ''"/>

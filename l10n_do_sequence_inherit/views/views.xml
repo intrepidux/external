@@ -4,13 +4,13 @@
         <field name="name">l10n_do_sequence_view_tree</field>
         <field name="model">l10n.sequence.max</field>
         <field name="arch" type="xml">
-            <tree string="Sequence Max">
+            <list>
                 <field name="document_type_id"/> 
                 <field name="company_id"/>
                 <field name="max"/>
                 <field name="max_alert"/>
                 <field name="user_id"/>
-            </tree>
+            </list>
           </field>
       </record>
       
@@ -38,7 +38,7 @@
                 <field name="name">sequence_action_name</field>
                 <field name="type">ir.actions.act_window</field>
                 <field name="res_model">l10n.sequence.max</field>
-                <field name="view_mode">tree,form</field>
+                <field name="view_mode">list,form</field>
             </record>
       
       <menuitem id="l10n_do_sequence_inherit_root" name="menu_root" />

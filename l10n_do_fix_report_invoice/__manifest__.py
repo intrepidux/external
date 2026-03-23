@@ -1,6 +1,11 @@
 {
     'name': 'L10n Do Fix Report Invoice, indexa',
-    'version': '18.0.1.0.0.2',
+    'author': "Intrepidux SRL, David Contreras",
+    'website': "http://www.intrepidux.com",
+    "license": "OPL-1",
+    "support": "soporte@intrepidux.com",
+    'category': 'Localization',
+    'version': "18.0.1.0.2",
     'depends': ['l10n_do_accounting'],
     'data': [
 

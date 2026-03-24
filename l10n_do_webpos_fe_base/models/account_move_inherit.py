@@ -127,6 +127,8 @@ class AccountMove(models.Model):
             # Check if l10n_latam_document_type_id exists and has doc_code_prefix
             if (hasattr(record, 'l10n_latam_document_type_id') and
                 record.l10n_latam_document_type_id and
+                hasattr(record, 'l10n_latam_document_type_id') and
+                record.l10n_latam_document_type_id and
                 hasattr(record.l10n_latam_document_type_id, 'doc_code_prefix')):
                 # If document type code starts with 'E', it's an electronic invoice
                 doc_code = record.l10n_latam_document_type_id.doc_code_prefix or ''
@@ -135,9 +137,49 @@ class AccountMove(models.Model):
                 # Fallback: if we can't determine from document type, check company settings
                 # This maintains compatibility with the original Adel logic
                 record.is_ecf_invoice = (
+                    hasattr(record.company_id, 'l10n_do_ecf_issuer') and
                     record.company_id.l10n_do_ecf_issuer and
                     record.country_code == "DO"
                 )
+
+    def _get_webpos_ecf_modification_code(self, invoice):
+        """
+        Calculate automatically the e-CF modification code for WebPOS API.
+        
+        WebPOS API only accepts codes 1 and 3:
+        - "1" = Total Cancellation (when credit note amount == original invoice amount)
+        - "3" = Amount correction (when credit note amount < original invoice amount)
+        
+        This method works independently of any localization field.
+        """
+        # Only apply to credit notes (out_refund) and debit notes (out_debit)
+        if invoice.move_type not in ('out_refund', 'out_debit'):
+            return ''
+        
+        # Get the original invoice
+        original_invoice = None
+        if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
+            original_invoice = invoice.reversed_entry_id
+        elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
+            original_invoice = invoice.debit_origin_id
+        
+        if not original_invoice:
+            _logger.warning(f"Cannot determine modification code: no original invoice found for {invoice.name}")
+            return ''
+        
+        # Compare amounts using absolute values (to handle negative amounts in refunds)
+        current_amount = abs(invoice.amount_total)
+        original_amount = abs(original_invoice.amount_total)
+        
+        # Use a small epsilon for float comparison
+        epsilon = 0.01
+        
+        if abs(current_amount - original_amount) < epsilon:
+            # Total cancellation - amounts are equal
+            return '1'
+        else:
+            # Amount correction - credit note is for less than original
+            return '3'
 
     def _get_api_base_url(self):
         """Get the API base URL from system parameters"""
@@ -577,6 +619,18 @@ class AccountMove(models.Model):
             else:
                 l10n_do_origin_ncf_date = ''
 
+            # Calculate e-CF modification code automatically for WebPOS
+            # Priority: 1) Use localization field if present and valid, 2) Calculate automatically
+            ecf_modification_code = ''
+            if hasattr(invoice, 'l10n_do_ecf_modification_code') and invoice.l10n_do_ecf_modification_code:
+                # Use localization field if it has a valid value
+                ecf_modification_code = invoice.l10n_do_ecf_modification_code
+                _logger.info("Using localization l10n_do_ecf_modification_code: %s", ecf_modification_code)
+            else:
+                # Calculate automatically for WebPOS (only codes 1 and 3 supported)
+                ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
+                _logger.info("Auto-calculated l10n_do_ecf_modification_code for WebPOS: %s", ecf_modification_code)
+
             # Prepare main invoice record data
             record_data = {
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
@@ -585,7 +639,7 @@ class AccountMove(models.Model):
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
                 'l10n_do_income_type': invoice.l10n_do_income_type or '01',
-                'l10n_do_ecf_modification_code': invoice.l10n_do_ecf_modification_code or '',
+                'l10n_do_ecf_modification_code': ecf_modification_code,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,

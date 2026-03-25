@@ -653,7 +653,7 @@ class AccountMove(models.Model):
             }
             
             _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", 
-                        invoice.l10n_do_ecf_modification_code)
+                        ecf_modification_code)
 
             def clean_dates(obj):
                 if isinstance(obj, dict):

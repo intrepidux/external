@@ -5,7 +5,7 @@
         <xpath expr="//div[hasclass('o_footer_content')]/div[1]" position="before">
 
             <!-- BLOQUE QR (IZQUIERDA) -->
-            <div t-if="o and 'l10n_do_electronic_stamp' in o and o.l10n_do_electronic_stamp"
+            <div t-if="o and 'l10n_do_webpos_electronic_stamp' in o and o.l10n_do_webpos_electronic_stamp"
                 style="min-width: 260px; margin-right: 10px; padding-right: 10px; border-right: 1px solid #ccc;">
 
                 <div style="text-align: left;">
@@ -14,7 +14,7 @@
                     <div style="display: inline-block; vertical-align: top;">
                         <img alt="Barcode"
                             style="width: 100px; height: 100px;"
-                            t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_electronic_stamp"/>
+                            t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp"/>
                     </div>
 
                     <!-- INFO -->

@@ -5,8 +5,8 @@
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "18.0.1.0.2",
-    'depends': ['l10n_do_accounting'],
+    'version': "18.0.1.0.3",
+    'depends': ['l10n_do_webpos_fe_base', ],
     'data': [
 
         'views/report_invoice_fix.xml',

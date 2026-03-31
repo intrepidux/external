@@ -142,6 +142,24 @@ class AccountMove(models.Model):
                     record.country_code == "DO"
                 )
 
+    def get_clean_description(self, line):
+        """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
+        
+        Prioriza el nombre base del producto (product_template_id.name) para evitar
+        códigos adicionales como 'P00204:' o '[05116.001.150]' que Odoo agrega en line.name.
+        """
+        # Obtener nombre base del producto (sin variantes)
+        if line.product_id and line.product_id.product_template_id:
+            description = line.product_id.product_template_id.name
+        else:
+            description = line.name or ''
+        
+        # Truncar a 80 caracteres si excede
+        if len(description) > 80:
+            description = description[:77] + '...'
+        
+        return description
+
     def _get_webpos_ecf_modification_code(self, invoice):
         """
         Calculate automatically the e-CF modification code for WebPOS API.
@@ -265,7 +283,44 @@ class AccountMove(models.Model):
             return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
         return False
 
+    def _validate_webpos_invoice(self):
+        """Valida todos los requisitos de WebPOS antes de confirmar la factura.
+        
+        Recoge todos los errores y los muestra juntos al final.
+        Solo aplica para diarios WebPOS.
+        """
+        if not self.journal_id.is_webpos:
+            return
+        
+        errors = []
+        
+        # 1. Validar RNC/Cédula para facturas >= 250,000
+        if self.amount_total >= 250000:
+            if not self.partner_id.vat or not self.partner_id.vat.strip():
+                errors.append(
+                    _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
+                )
+        
+        # 3. Validar impuestos verificados
+        taxes = self.line_ids.tax_ids
+        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+        if unverified_taxes:
+            tax_names = ", ".join(unverified_taxes.mapped("name"))
+            errors.append(
+                _("- Impuestos sin verificar: %s") % tax_names
+            )
+        
+        # Lanzar error conjunto si hay errores
+        if errors:
+            raise UserError(
+                _("La factura no puede ser confirmada. Por favor, corrija los siguientes errores:\n\n%s")
+                % "\n".join(errors)
+            )
+
     def action_post(self):
+        # Validar antes de confirmar (solo para WebPOS)
+        self._validate_webpos_invoice()
+
         res = super(AccountMove, self).action_post()
 
         invoices = self.env['account.move'].browse(self.ids)
@@ -288,22 +343,6 @@ class AccountMove(models.Model):
                     xml_data = xml_content
                     try:
                         execute_EF = invoice.create_xml_data(invoice, xml_data)
-                        if invoice.amount_total >= 250000:
-                            if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
-                                raise UserError(
-                                    _(
-                                        "Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado."
-                                    )
-                                )
-                        taxes = self.line_ids.tax_ids
-                        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
-                        if unverified_taxes:
-                            raise UserError(
-                                _(
-                                    "Los siguientes impuestos no están verificados para WebPOS: %s"
-                                )
-                                % ", ".join(unverified_taxes.mapped("name"))
-                            )
                         execute_EF.save_and_send_xml()
                         execute_EF.verify_sent_encf()
                         if invoice.l10n_latam_document_number.startswith("TEMP-"):
@@ -541,7 +580,7 @@ class AccountMove(models.Model):
 
 
                 lines_data.append({
-                    'name': line.name or '',
+                    'name': self.get_clean_description(line),
                     'quantity': line.quantity or 0.0,
                     'price_unit': adjusted_price_unit,
                     'price_subtotal': line.price_subtotal or 0.0,
@@ -620,16 +659,8 @@ class AccountMove(models.Model):
                 l10n_do_origin_ncf_date = ''
 
             # Calculate e-CF modification code automatically for WebPOS
-            # Priority: 1) Use localization field if present and valid, 2) Calculate automatically
-            ecf_modification_code = ''
-            if hasattr(invoice, 'l10n_do_ecf_modification_code') and invoice.l10n_do_ecf_modification_code:
-                # Use localization field if it has a valid value
-                ecf_modification_code = invoice.l10n_do_ecf_modification_code
-                _logger.info("Using localization l10n_do_ecf_modification_code: %s", ecf_modification_code)
-            else:
-                # Calculate automatically for WebPOS (only codes 1 and 3 supported)
-                ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
-                _logger.info("Auto-calculated l10n_do_ecf_modification_code for WebPOS: %s", ecf_modification_code)
+            ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
+            _logger.info("Auto-calculated l10n_do_ecf_modification_code for WebPOS: %s", ecf_modification_code)
 
             # Prepare main invoice record data
             record_data = {

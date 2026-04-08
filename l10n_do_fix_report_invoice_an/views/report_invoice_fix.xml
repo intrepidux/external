@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <template id="report_invoice_document_fix"
+    <!-- <template id="report_invoice_document_fix"
               inherit_id="account.report_invoice_document">
 
 
@@ -19,7 +19,7 @@
             <attribute name="class" add="text-nowrap" separator=" "/>
         </xpath>
 
-        <!-- Imporante -->
+        <!- - Imporante - ->
         <xpath expr="//table[@name='invoice_line_table']" position="attributes">
             <attribute name="style" add="table-layout: fixed;" separator=" "/>
         </xpath>
@@ -45,7 +45,7 @@
         </xpath>
 
 
-    </template>
+    </template> -->
 
     <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting.external_layout_standard_inherited">
 

@@ -127,17 +127,119 @@ class AccountMove(models.Model):
             # Check if l10n_latam_document_type_id exists and has doc_code_prefix
             if (hasattr(record, 'l10n_latam_document_type_id') and
                 record.l10n_latam_document_type_id and
+                hasattr(record, 'l10n_latam_document_type_id') and
+                record.l10n_latam_document_type_id and
                 hasattr(record.l10n_latam_document_type_id, 'doc_code_prefix')):
                 # If document type code starts with 'E', it's an electronic invoice
-                doc_code = record.l10n_latam_document_type_id.doc_code_prefix or ''
-                record.is_ecf_invoice = doc_code.startswith('E')
+                record.is_ecf_invoice = record.l10n_latam_document_type_id.doc_code_prefix and record.l10n_latam_document_type_id.doc_code_prefix.startswith('E')
             else:
                 # Fallback: if we can't determine from document type, check company settings
                 # This maintains compatibility with the original Adel logic
                 record.is_ecf_invoice = (
+                    hasattr(record.company_id, 'l10n_do_ecf_issuer') and
                     record.company_id.l10n_do_ecf_issuer and
                     record.country_code == "DO"
                 )
+
+    def get_clean_description(self, line):
+        """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
+
+        Prioriza el nombre base del producto (product_template_id.name) para evitar
+        códigos adicionales como 'P00204:' o '[05116.001.150]' que Odoo agrega en line.name.
+        """
+        # Obtener nombre base del producto (sin variantes)
+        if line.product_id and line.product_id.product_template_id:
+            description = line.product_id.product_template_id.name
+        else:
+            description = line.name or ''
+
+        # Truncar a 80 caracteres si excede
+        if len(description) > 80:
+            description = description[:77] + '...'
+
+        return description
+
+    def _get_webpos_ecf_modification_code(self, invoice):
+        """
+        Calculate automatically the e-CF modification code for WebPOS API.
+
+        WebPOS API only accepts codes 1 and 3:
+        - "1" = Total Cancellation (when credit note amount == original invoice amount)
+        - "3" = Amount correction (when credit note amount < original invoice amount)
+
+        This method works independently of any localization field.
+        """
+        # Only apply to credit notes (out_refund) and debit notes (out_debit)
+        if invoice.move_type not in ('out_refund', 'out_debit'):
+            return ''
+
+        # Get the original invoice
+        original_invoice = None
+        if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
+            original_invoice = invoice.reversed_entry_id
+        elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
+            original_invoice = invoice.debit_origin_id
+
+        if not original_invoice:
+            _logger.warning(f"Cannot determine modification code: no original invoice found for {invoice.name}")
+            return ''
+
+        # Compare amounts using absolute values (to handle negative amounts in refunds)
+        current_amount = abs(invoice.amount_total)
+        original_amount = abs(original_invoice.amount_total)
+
+        # Use a small epsilon for float comparison
+        epsilon = 0.01
+
+        if abs(current_amount - original_amount) < epsilon:
+            # Total cancellation - amounts are equal
+            return '1'
+        else:
+            # Amount correction - credit note is for less than original
+            return '3'
+
+    def _validate_webpos_invoice(self):
+        """Valida todos los requisitos de WebPOS antes de confirmar la factura.
+
+        Recoge todos los errores y los muestra juntos al final.
+        Solo aplica para diarios WebPOS.
+        """
+        if not self.journal_id.is_webpos:
+            return
+
+        errors = []
+
+        # 1. Validar RNC/Cédula para facturas >= 250,000
+        if self.amount_total >= 250000:
+            if not self.partner_id.vat or not self.partner_id.vat.strip():
+                errors.append(
+                    _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
+                )
+
+        # 2. Validar que cada línea tenga al menos un impuesto
+        for line in self.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
+            if not line.tax_ids:
+                errors.append(
+                    _("- Línea '%s' no tiene impuestos configurados. "
+                      "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento).") 
+                    % line.name[:50]
+                )
+
+        # 3. Validar impuestos verificados
+        taxes = self.line_ids.tax_ids
+        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+        if unverified_taxes:
+            tax_names = ", ".join(unverified_taxes.mapped("name"))
+            errors.append(
+                _("- Impuestos sin verificar: %s") % tax_names
+            )
+
+        # Lanzar error conjunto si hay errores
+        if errors:
+            raise UserError(
+                _("La factura no puede ser confirmada. Por favor, corrija los siguientes errores:\n\n%s")
+                % "\n".join(errors)
+            )
 
     def _get_api_base_url(self):
         """Get the API base URL from system parameters"""
@@ -224,6 +326,9 @@ class AccountMove(models.Model):
         return False
 
     def action_post(self):
+        # Validar antes de confirmar (solo para WebPOS)
+        self._validate_webpos_invoice()
+
         res = super(AccountMove, self).action_post()
 
         invoices = self.env['account.move'].browse(self.ids)
@@ -448,41 +553,15 @@ class AccountMove(models.Model):
             for line in invoice.invoice_line_ids:
                 line_taxes = []
                 for tax in line.tax_ids:
-                    _logger.error("="*60)
-                    _logger.error("TAX DEBUG:")
-                    _logger.error(f"  Tax name: {tax.name}")
-                    _logger.error(f"  Tax amount: {tax.amount}")
-                    _logger.error(f"  Tax group: {tax.tax_group_id}")
-                    _logger.error(f"  Tax group name: {tax.tax_group_id.name if tax.tax_group_id else 'None'}")
-                    _logger.error(f"  Tipo_impuesto_webpos: {getattr(tax, 'tipo_impuesto_webpos', 'NO_EXISTE')}")
-                    
                     tax_data = {
                         'name': tax.name or '',
                         'amount': tax.amount or 0.0,
                         'price_include': tax.price_include or False,
-                        'tax_group_id': [tax.tax_group_id.id, tax.tax_group_id.name] if tax.tax_group_id else False,
+                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
                     }
-                    
-                    # Log condition evaluation
-                    has_group = bool(tax.tax_group_id)
-                    group_name_upper = tax.tax_group_id.name.upper() if tax.tax_group_id else ''
-                    has_itbis = 'ITBIS' in group_name_upper if tax.tax_group_id else False
-                    is_positive = tax.amount > 0
-                    
-                    _logger.error(f"  Condiciones:")
-                    _logger.error(f"    - has_group: {has_group}")
-                    _logger.error(f"    - group_name_upper: {group_name_upper}")
-                    _logger.error(f"    - has_itbis: {has_itbis}")
-                    _logger.error(f"    - is_positive: {is_positive}")
-                    _logger.error(f"    - ALL CONDITIONS: {has_group and has_itbis and is_positive}")
-                    
                     # Map tipo_impuesto_webpos exclusively for ITBIS taxes (group "ITBIS" and positive amount)
-                    if has_group and has_itbis and is_positive:
-                        tax_data['tipo_impuesto_webpos'] = tax.tipo_impuesto_webpos
-                        _logger.error(f"  ✓ APLICADO tipo_impuesto_webpos = {tax.tipo_impuesto_webpos}")
-                    else:
-                        _logger.error(f"  ✗ NO aplicado")
-                    
+                    if tax.tax_group_id.name == 'ITBIS' and tax.amount > 0:
+                        tax_data['tipo_impuesto_webpos_itbis'] = tax.tipo_impuesto_webpos
                     line_taxes.append(tax_data)
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
@@ -499,7 +578,7 @@ class AccountMove(models.Model):
 
 
                 lines_data.append({
-                    'name': line.name or '',
+                    'name': self.get_clean_description(line),
                     'quantity': line.quantity or 0.0,
                     'price_unit': adjusted_price_unit,
                     'price_subtotal': line.price_subtotal or 0.0,
@@ -553,6 +632,10 @@ class AccountMove(models.Model):
                     except (AttributeError, ValueError, TypeError):
                         ncf_expiration_date = ''
 
+            # Calculate e-CF modification code automatically for WebPOS
+            ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
+            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", ecf_modification_code)
+
             # Determine origin NCF and reference date for credit/debit notes
             # Debug logging for l10n_do_origin_ncf field
             _logger.error(f"DEBUG: invoice.l10n_do_origin_ncf raw value: {getattr(invoice, 'l10n_do_origin_ncf', 'FIELD_NOT_FOUND')}")
@@ -584,8 +667,8 @@ class AccountMove(models.Model):
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
-                'l10n_do_income_type': invoice.l10n_do_income_type or '01',
-                'l10n_do_ecf_modification_code': invoice.l10n_do_ecf_modification_code or '',
+                'l10n_do_income_type': invoice.l10n_do_income_type,
+                'l10n_do_ecf_modification_code': ecf_modification_code,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,
@@ -597,9 +680,6 @@ class AccountMove(models.Model):
                 'aditional_info_invoice_header1': getattr(invoice, 'aditional_info_invoice_header1', ''),
                 'aditional_info_invoice_header2': getattr(invoice, 'aditional_info_invoice_header2', ''),
             }
-            
-            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", 
-                        invoice.l10n_do_ecf_modification_code)
 
             def clean_dates(obj):
                 if isinstance(obj, dict):

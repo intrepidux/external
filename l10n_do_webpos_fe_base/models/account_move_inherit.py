@@ -539,7 +539,7 @@ class AccountMove(models.Model):
             # Prepare partner data with comprehensive fallback
             partner_data = {
                 'name': invoice.partner_id.name or '',
-                'vat': invoice.partner_id.vat or '',
+                'vat': ''.join(filter(str.isdigit, invoice.partner_id.vat or '')),
                 'street': invoice.partner_id.street or '',
                 'state_name': invoice.partner_id.state_id.name if invoice.partner_id.state_id else '',
                 'country_name': invoice.partner_id.country_id.name if invoice.partner_id.country_id else '',

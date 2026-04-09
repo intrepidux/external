@@ -144,16 +144,31 @@ class AccountMove(models.Model):
     def get_clean_description(self, line):
         """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
 
-        Prioriza el nombre base del producto (product_template_id.name) para evitar
+        Prioriza el nombre base del producto para evitar
         códigos adicionales como 'P00204:' o '[05116.001.150]' que Odoo agrega en line.name.
+      
+        Si el usuario modificó manualmente la descripción, la respetamos.
+        Si es la descripción automática de Odoo, usamos el nombre del producto 
+        para evitar códigos de referencia o formatos internos.
         """
-        # Obtener nombre base del producto (sin variantes)
-        if line.product_id and line.product_id.product_template_id:
-            description = line.product_id.product_template_id.name
+        product = line.product_id
+        line_name = line.name or ''
+        
+        if product:
+            product_name = product.name or ''
+            # Si el nombre del producto está contenido en la línea, 
+            # es probable que sea la descripción automática (ej: "[REF] Producto")
+            # En ese caso, preferimos el nombre limpio del producto.
+            if product_name in line_name:
+                description = product_name
+            else:
+                # Si el usuario cambió la descripción y ya no coincide con el nombre 
+                # del producto, respetamos su cambio manual.
+                description = line_name
         else:
-            description = line.name or ''
+            description = line_name
 
-        # Truncar a 80 caracteres si excede
+        # Truncar a 80 caracteres para cumplimiento DGII
         if len(description) > 80:
             description = description[:77] + '...'
 

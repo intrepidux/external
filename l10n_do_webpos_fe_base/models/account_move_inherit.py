@@ -143,10 +143,7 @@ class AccountMove(models.Model):
 
     def get_clean_description(self, line):
         """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
-
-        Prioriza el nombre base del producto para evitar
-        códigos adicionales como 'P00204:' o '[05116.001.150]' que Odoo agrega en line.name.
-      
+        
         Si el usuario modificó manualmente la descripción, la respetamos.
         Si es la descripción automática de Odoo, usamos el nombre del producto 
         para evitar códigos de referencia o formatos internos.
@@ -154,6 +151,10 @@ class AccountMove(models.Model):
         product = line.product_id
         line_name = line.name or ''
         
+        # Solo procesar si la línea es de tipo 'product'
+        if line.display_type != 'product':
+            return '' # No enviar secciones o notas al API
+
         if product:
             product_name = product.name or ''
             # Si el nombre del producto está contenido en la línea, 
@@ -565,7 +566,7 @@ class AccountMove(models.Model):
 
             # Prepare invoice lines data
             lines_data = []
-            for line in invoice.invoice_line_ids:
+            for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
                 line_taxes = []
                 for tax in line.tax_ids:
                     tax_data = {

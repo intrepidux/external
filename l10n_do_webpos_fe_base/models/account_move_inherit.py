@@ -141,6 +141,33 @@ class AccountMove(models.Model):
                     record.country_code == "DO"
                 )
 
+    def _get_fiscal_rate(self):
+        '''
+        Ejemplos:
+        - Compañía base DOP, factura USD: retorna ~60.0
+        - Compañía base USD, factura USD: retorna ~60.0
+        - Compañía base DOP, factura DOP: retorna 1.0
+        
+        '''
+        self.ensure_one()
+        # 1. Si la factura es en DOP, no hay nada que hacer
+        if self.currency_id.name == 'DOP':
+            return 1.0
+            
+        # 2. Optimización: Si la compañía es DOP, el inverse_rate ya es lo que buscamos
+        if self.company_id.currency_id.name == 'DOP':
+            return self.currency_id.inverse_rate or 1.0
+
+        # 3. Caso "No hay de otra": La compañía no es DOP, calculamos relación relativa
+        currency_dop = self.env.ref('base.DOP', raise_if_not_found=False) or \
+                       self.env['res.currency'].search([('name', '=', 'DOP')], limit=1)
+        
+        if currency_dop and self.currency_id.rate:
+            # (Unidades de DOP por 1 unidad base) / (Unidades de moneda factura por 1 unidad base)
+            return currency_dop.rate / self.currency_id.rate
+            
+        return self.currency_id.inverse_rate or 1.0
+
     def get_clean_description(self, line):
         """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
         
@@ -551,7 +578,7 @@ class AccountMove(models.Model):
                 'id': invoice.currency_id.id,
                 'name': invoice.currency_id.name or '',
                 'decimal_places': invoice.currency_id.decimal_places or 2,
-                'inverse_rate': invoice.currency_id.rate or 1.0
+                'inverse_rate': invoice._get_fiscal_rate()
             }
 
             # Prepare company data with fallback

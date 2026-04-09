@@ -156,7 +156,7 @@ class AccountMove(models.Model):
             
         # 2. Optimización: Si la compañía es DOP, el inverse_rate ya es lo que buscamos
         if self.company_id.currency_id.name == 'DOP':
-            return self.currency_id.inverse_rate or 1.0
+            return  round(self.currency_id.inverse_rate or 1.0, 4)
 
         # 3. Caso "No hay de otra": La compañía no es DOP, calculamos relación relativa
         currency_dop = self.env.ref('base.DOP', raise_if_not_found=False) or \
@@ -164,9 +164,9 @@ class AccountMove(models.Model):
         
         if currency_dop and self.currency_id.rate:
             # (Unidades de DOP por 1 unidad base) / (Unidades de moneda factura por 1 unidad base)
-            return currency_dop.rate / self.currency_id.rate
+            return  round(currency_dop.rate / self.currency_id.rate, 4)
             
-        return self.currency_id.inverse_rate or 1.0
+        return  round(self.currency_id.inverse_rate or 1.0, 4)
 
     def get_clean_description(self, line):
         """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.

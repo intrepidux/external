@@ -369,16 +369,13 @@ class AccountMove(models.Model):
         return False
 
     def action_post(self):
-        # Validar antes de confirmar (solo para WebPOS)
-        self._validate_webpos_invoice()
-
+        # Primero, ejecutar el método original para crear el asiento contable.
+        # Esto es necesario para que los campos de la factura estén correctamente
+        # establecidos antes de cualquier validación o lógica específica de WebPOS.
         res = super(AccountMove, self).action_post()
 
-        invoices = self.env['account.move'].browse(self.ids)
-        
-
-
-        # Lógica adicional después de confirmar la factura
+        # Obtener las facturas (self puede ser un recordset de una o varias facturas)
+        invoices = self.env["account.move"].browse(self.ids)
 
         for invoice in invoices:
             _logger.info("=" * 50)
@@ -387,48 +384,37 @@ class AccountMove(models.Model):
             _logger.info("=" * 50)
             _logger.info("=" * 50)
 
+            # Mover la verificación al principio del bucle para procesar solo documentos permitidos
             if invoice._is_l10n_do_webpos_allowed_document():
+                # Validar antes de confirmar (solo para WebPOS y solo si es un documento permitido)
+                # Esta validación ahora ocurre después de que la factura ha sido \'posteada\' por el super
+                invoice._validate_webpos_invoice()
 
-                    doc_type = self.doc_type_E(invoice)
-                    xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
-                    xml_data = xml_content
-                    try:
-                        execute_EF = invoice.create_xml_data(invoice, xml_data)
-                        if invoice.amount_total >= 250000:
-                            if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
-                                raise UserError(
-                                    _(
-                                        "Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado."
-                                    )
-                                )
-                        taxes = self.line_ids.tax_ids
-                        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
-                        if unverified_taxes:
-                            raise UserError(
-                                _(
-                                    "Los siguientes impuestos no están verificados para WebPOS: %s"
-                                )
-                                % ", ".join(unverified_taxes.mapped("name"))
-                            )
-                        execute_EF.save_and_send_xml()
-                        execute_EF.verify_sent_encf()
-                        if invoice.l10n_latam_document_number.startswith("TEMP-"):
-                            document_number = (
-                                invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                            )
-                            invoice.write(
-                                {
-                                    "l10n_latam_document_number": document_number,
-                                    "payment_reference": f"{invoice.name} - {document_number}",
-                                }
-                            )
-                            if invoice.xml_data_id:
-                                invoice.xml_data_id.name = document_number
-                    except Exception as e:
-                        raise UserError(
-                            _("Error al crear el documento Electronico: %s" % str(e))
+                doc_type = invoice.doc_type_E(invoice)
+                xml_content, xml_name = invoice.build_xml_to_print(invoice, doc_type)
+                xml_data = xml_content
+                try:
+                    execute_EF = invoice.create_xml_data(invoice, xml_data)
+                    # Las validaciones duplicadas aquí se eliminan ya que _validate_webpos_invoice() las maneja
+                    execute_EF.save_and_send_xml()
+                    execute_EF.verify_sent_encf()
+                    if invoice.l10n_latam_document_number.startswith("TEMP-"):
+                        document_number = (
+                            invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
                         )
-                    self.xml_print_to_std(xml_content)
+                        invoice.write(
+                            {
+                                "l10n_latam_document_number": document_number,
+                                "payment_reference": f"{invoice.name} - {document_number}",
+                            }
+                        )
+                        if invoice.xml_data_id:
+                            invoice.xml_data_id.name = document_number
+                except Exception as e:
+                    raise UserError(
+                        _("Error al crear el documento Electronico: %s" % str(e))
+                    )
+                invoice.xml_print_to_std(xml_content)
             else:
                 _logger.info(
                     "WebPOS API call skipped for invoice %s: Document type %s not allowed for current flow.",
@@ -436,7 +422,6 @@ class AccountMove(models.Model):
                     invoice.l10n_latam_document_number[1:3]
                     
                 )
-
 
         return res
 

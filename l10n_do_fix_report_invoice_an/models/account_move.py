@@ -47,57 +47,32 @@ class AccountMove(models.Model):
 
         return result
 
-    @api.depends(
-        "journal_id",
-        "l10n_latam_use_documents",
-        "state",
-        "l10n_latam_document_type_id",
-        "invoice_date", "move_type",
-    )
-    def _compute_l10n_do_fiscal_sequence(self):
-        super()._compute_l10n_do_fiscal_sequence()
-        
-        for inv in self:
-            if (
-                inv.l10n_latam_document_type_id
-                and inv.l10n_latam_document_type_id.l10n_do_ncf_type in ("e-credit_note", "e-debit_note")
-            ):
-                inv.l10n_do_fiscal_sequence_id = inv.env["account.fiscal.sequence"].search(
-                    [
-                        ("company_id", "parent_of", inv.company_id.ids),
-                        ("fiscal_type_id", "=", inv.l10n_latam_document_type_id.id),
-                        ("state", "=", "active"),
-                    ],
-                    order="expiration_date, id desc",
-                    limit=1,
-                )    
-
     def _post(self, soft=True):
         """Override to defer sequence consumption for WebPOS ECF invoices"""
         res = super()._post(soft)
 
         for inv in self:
-            # Condiciones mínimas: no tiene número, tiene secuencia y es WebPOS
-            if (not inv.l10n_latam_document_number and
-                res and
-                inv.journal_id.is_webpos):
+            is_webpos_ecf_journal = inv.journal_id and getattr(inv.journal_id, 'is_webpos', False)
+            is_ecf_invoice = getattr(inv, 'is_ecf_invoice', False)
 
-                # Check if this is a WebPOS ECF invoice
-                is_webpos_ecf = getattr(inv, 'is_ecf_invoice', False)
-
-                if is_webpos_ecf:
-                    # Defer sequence consumption - set temporary number
+            # Solo aplica la lógica de secuencia temporal si es un diario WebPOS ECF
+            # y si el número de documento actual no es ya un número temporal de WebPOS.
+            if is_webpos_ecf_journal and is_ecf_invoice and not (inv.l10n_latam_document_number or "").startswith("TEMP-"):
+                # Si no tiene número o el número actual no es un NCF válido para WebPOS
+                if not inv.l10n_latam_document_number or not inv.l10n_latam_document_number[1:3] in (inv.E_CF_VENTAS + inv.E_CF_COMPRAS + inv.E_CF_AJUSTES):
                     temp_number = f"TEMP-{inv.id}"
+                    # Restore state logic as in commit 1413838f
                     inv.state = "draft"
                     inv.write({
                         "state": "posted",
                         "l10n_latam_document_number": temp_number,
-                        "l10n_do_ncf_expiration_date": inv.l10n_do_fiscal_sequence_id.expiration_date,
                         "payment_reference": f'{inv.name} - {temp_number}',
+                        "l10n_do_ncf_expiration_date": inv.l10n_do_fiscal_sequence_id.expiration_date if inv.l10n_do_fiscal_sequence_id else False,
                     })
-                    _logger.info(f"Deferred sequence consumption for WebPOS ECF invoice {inv.id}")
-                else:
-                    # Normal consumption for non-WebPOS ECF
+                    _logger.info(f"Deferred sequence consumption (TEMP number assigned) for WebPOS ECF invoice {inv.id}")
+            elif not is_webpos_ecf_journal and not inv.l10n_latam_document_number:
+                # Lógica para consumo normal si no es una factura WebPOS ECF y no tiene número asignado
+                if inv.l10n_do_fiscal_sequence_id:
                     document_number = inv.l10n_do_fiscal_sequence_id.get_fiscal_number()
                     inv.state = "draft"
                     inv.write({
@@ -106,5 +81,6 @@ class AccountMove(models.Model):
                         "l10n_do_ncf_expiration_date": inv.l10n_do_fiscal_sequence_id.expiration_date,
                         "payment_reference": f'{inv.name} - {document_number}',
                     })
+                    _logger.info(f"Normal sequence consumption for non-WebPOS ECF invoice {inv.id}")
 
         return res

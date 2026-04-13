@@ -301,22 +301,31 @@ class AccountMove(models.Model):
 
     def _validate_webpos_invoice(self):
         """Valida todos los requisitos de WebPOS antes de confirmar la factura.
-        
+
         Recoge todos los errores y los muestra juntos al final.
         Solo aplica para diarios WebPOS.
         """
         if not self.journal_id.is_webpos:
             return
-        
+
         errors = []
-        
+
         # 1. Validar RNC/Cédula para facturas >= 250,000
         if self.amount_total >= 250000:
             if not self.partner_id.vat or not self.partner_id.vat.strip():
                 errors.append(
                     _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
                 )
-        
+
+        # 2. Validar que cada línea tenga al menos un impuesto
+        for line in self.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
+            if not line.tax_ids:
+                errors.append(
+                    _("- Línea '%s' no tiene impuestos configurados. "
+                      "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento).") 
+                    % line.name[:50]
+                )
+
         # 3. Validar impuestos verificados
         taxes = self.line_ids.tax_ids
         unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
@@ -325,6 +334,7 @@ class AccountMove(models.Model):
             errors.append(
                 _("- Impuestos sin verificar: %s") % tax_names
             )
+
         
         # Lanzar error conjunto si hay errores
         if errors:

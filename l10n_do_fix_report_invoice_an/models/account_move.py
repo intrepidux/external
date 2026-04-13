@@ -37,6 +37,15 @@ class AccountMove(models.Model):
             ("5", _("05 - Referencia a Factura Electrónica de Consumidor Final")),  # Reference Electronic Consumer Invoice
         ]
 
+    
+    @api.depends(
+        "journal_id",
+        "l10n_latam_use_documents",
+        "state",
+        "l10n_latam_document_type_id",
+        "invoice_date", "move_type",
+    )
+
     def _is_manual_document_number(self):
 
         result = super()._is_manual_document_number()
@@ -46,6 +55,23 @@ class AccountMove(models.Model):
             return False
 
         return result
+
+    def _compute_l10n_do_fiscal_sequence(self):
+        super()._compute_l10n_do_fiscal_sequence()
+        
+        for inv in self:
+            if (
+                inv.l10n_latam_document_type_id
+                and inv.l10n_latam_document_type_id.l10n_do_ncf_type in ("e-credit_note", "e-debit_note")
+            ):
+                inv.l10n_do_fiscal_sequence_id = inv.env["account.fiscal.sequence"].search(
+                    [
+                        ("company_id", "parent_of", inv.company_id.ids),
+                        ("fiscal_type_id", "=", inv.l10n_latam_document_type_id.id),
+                        ("state", "=", "active"),
+                    ],
+                    order="expiration_date, id desc",
+                    limit=1,        
 
     def _post(self, soft=True):
         """Override to defer sequence consumption for WebPOS ECF invoices"""

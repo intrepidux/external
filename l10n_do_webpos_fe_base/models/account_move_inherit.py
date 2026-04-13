@@ -318,8 +318,8 @@ class AccountMove(models.Model):
             )
 
     def action_post(self):
-        # Validar antes de confirmar (solo para WebPOS)
-        self._validate_webpos_invoice()
+       
+        
 
         res = super(AccountMove, self).action_post()
 
@@ -337,6 +337,7 @@ class AccountMove(models.Model):
             _logger.info("=" * 50)
 
             if invoice._is_l10n_do_webpos_allowed_document():
+                    invoice._validate_webpos_invoice()
 
                     doc_type = self.doc_type_E(invoice)
                     xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)

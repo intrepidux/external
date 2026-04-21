@@ -71,7 +71,8 @@ class AccountMove(models.Model):
                         ("state", "=", "active"),
                     ],
                     order="expiration_date, id desc",
-                    limit=1,        
+                    limit=1,   
+                )     
 
     def _post(self, soft=True):
         """Override to defer sequence consumption for WebPOS ECF invoices"""

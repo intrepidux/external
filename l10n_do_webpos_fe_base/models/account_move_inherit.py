@@ -378,50 +378,43 @@ class AccountMove(models.Model):
         invoices = self.env["account.move"].browse(self.ids)
 
         for invoice in invoices:
-            _logger.info("=" * 50)
-            _logger.info("=" * 50)
-            _logger.error("invoice_id: %s, is_ecf:%s, is_webpos: %s, latam_document: %s", invoice,invoice.is_ecf_invoice, invoice.journal_id.is_webpos, invoice.l10n_latam_document_number) 
-            _logger.info("=" * 50)
-            _logger.info("=" * 50)
-
-            # Mover la verificación al principio del bucle para procesar solo documentos permitidos
-            if invoice._is_l10n_do_webpos_allowed_document():
-                # Validar antes de confirmar (solo para WebPOS y solo si es un documento permitido)
-                # Esta validación ahora ocurre después de que la factura ha sido \'posteada\' por el super
-                invoice._validate_webpos_invoice()
-
-                doc_type = invoice.doc_type_E(invoice)
-                xml_content, xml_name = invoice.build_xml_to_print(invoice, doc_type)
-                xml_data = xml_content
-                try:
-                    execute_EF = invoice.create_xml_data(invoice, xml_data)
-                    # Las validaciones duplicadas aquí se eliminan ya que _validate_webpos_invoice() las maneja
-                    execute_EF.save_and_send_xml()
-                    execute_EF.verify_sent_encf()
-                    if invoice.l10n_latam_document_number.startswith("TEMP-"):
-                        document_number = (
-                            invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                        )
-                        invoice.write(
-                            {
-                                "l10n_latam_document_number": document_number,
-                                "payment_reference": f"{invoice.name} - {document_number}",
-                            }
-                        )
-                        if invoice.xml_data_id:
-                            invoice.xml_data_id.name = document_number
-                except Exception as e:
-                    raise UserError(
-                        _("Error al crear el documento Electronico: %s" % str(e))
-                    )
-                invoice.xml_print_to_std(xml_content)
-            else:
-                _logger.info(
-                    "WebPOS API call skipped for invoice %s: Document type %s not allowed for current flow.",
+            if not invoice._is_l10n_do_webpos_allowed_document():
+                _logger.debug(
+                    "WebPOS skipped for invoice %s: type %s not allowed",
                     invoice.id,
-                    invoice.l10n_latam_document_number[1:3]
-                    
+                    invoice.l10n_latam_document_number[1:3] if invoice.l10n_latam_document_number else "N/A"
                 )
+                continue
+            # Validar antes de confirmar (solo para WebPOS y solo si es un documento permitido)
+            # Esta validación ahora ocurre después de que la factura ha sido \'posteada\' por el super
+            invoice._validate_webpos_invoice()
+
+            doc_type = invoice.doc_type_E(invoice)
+            xml_content, xml_name = invoice.build_xml_to_print(invoice, doc_type)
+            xml_data = xml_content
+            try:
+                execute_EF = invoice.create_xml_data(invoice, xml_data)
+                # Las validaciones duplicadas aquí se eliminan ya que _validate_webpos_invoice() las maneja
+                execute_EF.save_and_send_xml()
+                execute_EF.verify_sent_encf()
+                if invoice.l10n_latam_document_number.startswith("TEMP-"):
+                    document_number = (
+                        invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
+                    )
+                    invoice.write(
+                        {
+                            "l10n_latam_document_number": document_number,
+                            "payment_reference": f"{invoice.name} - {document_number}",
+                        }
+                    )
+                    if invoice.xml_data_id:
+                        invoice.xml_data_id.name = document_number
+            except Exception as e:
+                raise UserError(
+                    _("Error al crear el documento Electronico: %s" % str(e))
+                )
+            invoice.xml_print_to_std(xml_content)
+
 
         return res
 

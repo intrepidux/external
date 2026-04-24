@@ -52,7 +52,7 @@
         <xpath expr="//div[@class='text-center']" position="before">
             <div t-if="o and 'l10n_do_webpos_electronic_stamp' in o and o.l10n_do_webpos_electronic_stamp" style="text-align: left; margin-bottom: 10px;">
                 <div style="display: inline-block; vertical-align: top;">
-                    <img alt="Barcode" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp if o.l10n_do_webpos_electronic_stamp else ''"/>
+                    <img t-if="o.l10n_do_webpos_electronic_stamp_encoded" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp_encoded"/>
                 </div>
                 <div style="display: inline-block; vertical-align: top; margin-left: 10px;">
                     <t t-if="o.l10n_do_ecf_security_code">

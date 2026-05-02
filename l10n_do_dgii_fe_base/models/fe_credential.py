@@ -105,11 +105,9 @@ class ItxFeDgii(models.Model):
         result = {} # Inicializar result
         try:
             response = requests.post(api_url, json={}, timeout=5)
-            _logger.debug("API raw response for connection test: %s", response.text) # <-- AÑADIDO
             response.raise_for_status()
             try:
                 result = response.json()
-                _logger.debug("API JSON response for connection test: %s", result) # <-- MOVIDO Y CORREGIDO
             except json.JSONDecodeError:
                 _logger.error("API Response is not a valid JSON: %s", response.text)
                 return {
@@ -228,16 +226,31 @@ class ItxFeDgii(models.Model):
 
         headers = {'Content-Type': 'application/json'}
 
+        result = {} # Inicializar result
         try:
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+            response = requests.post(api_url, json={'params': payload}, headers=headers, timeout=30)
             _logger.debug("API Response Status: %s, Response Text: %s", response.status_code, response.text[:200])
             response.raise_for_status()
-            result = response.json()
-            _logger.debug("API Response JSON: %s", result)
+            try:
+                # La respuesta JSON-RPC real está anidada bajo 'result'
+                # primero parseamos la respuesta completa, luego accedemos a 'result'
+                full_api_response = response.json()
+                api_response_data = full_api_response.get('result', {})
+            except json.JSONDecodeError:
+                _logger.error("API Response for certificate validation is not a valid JSON: %s", response.text)
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Error de Validacion',
+                        'message': f'La API respondió con contenido no JSON al validar certificado: {response.text[:100]}...',
+                        'type': 'danger',
+                    }
+                }
 
-            if result.get('success') and result.get('valid'):
+            if api_response_data.get('valid'):
                 _logger.debug("Certificate validated successfully.")
-                cert_info = result.get('certificate_info', {})
+                cert_info = api_response_data.get('certificate_info', {})
                 subject = cert_info.get('subject', 'N/A')
                 expiry = cert_info.get('not_after', 'N/A')
 
@@ -252,8 +265,8 @@ class ItxFeDgii(models.Model):
                     }
                 }
             else:
-                _logger.debug("Certificate validation failed. API Result: %s", result)
-                error_msg = result.get('message', 'Error desconocido')
+                _logger.debug("Certificate validation failed. API Result: %s", api_response_data)
+                error_msg = api_response_data.get('message', 'Error desconocido')
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',

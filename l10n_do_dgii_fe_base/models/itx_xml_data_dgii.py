@@ -9,6 +9,45 @@ from datetime import datetime, date
 
 _logger = logging.getLogger(__name__)
 
+
+def _post_dgii_json_route(url, params_dict, timeout=30):
+    """
+    POST a rutas Odoo type='json': el servidor espera JSON-RPC 2.0 con params.
+    Si se envía JSON plano, request.jsonrequest puede quedar vacío y el controlador ve {}.
+    """
+    body = {
+        'jsonrpc': '2.0',
+        'method': 'call',
+        'params': params_dict,
+        'id': 1,
+    }
+    response = requests.post(
+        url,
+        json=body,
+        headers={'Content-Type': 'application/json'},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict):
+        return data
+    if data.get('error'):
+        err = data['error']
+        msg = None
+        if isinstance(err, dict):
+            msg = err.get('message')
+            nested = err.get('data')
+            if isinstance(nested, dict) and nested.get('message'):
+                msg = nested['message']
+            elif isinstance(nested, str):
+                msg = nested
+        if not msg:
+            msg = str(err)
+        raise UserError(_('DGII API: %s') % msg)
+    result = data.get('result')
+    return result if isinstance(result, dict) else {}
+
+
 class ItxXMLDataDGII(models.Model):
     _name = 'itx.xml.data.dgii'
     _description = 'Maneja el procesamiento de documento XML para DGII'
@@ -161,169 +200,19 @@ class ItxXMLDataDGII(models.Model):
 
 
     def _prepare_invoice_data_payload(self):
-        '''
-        Prepare the invoice_data dictionary for API submission.
-        Extracts data from the associated account.move record.
-        '''
+        """
+        Deprecado: delega a account.move._prepare_invoice_data_for_api (contrato único).
+        """
+        self.ensure_one()
         invoice = self.account_move_id
         if not invoice:
-            raise UserError("No associated invoice record found.")
+            raise UserError(_("No associated invoice record found."))
+        return invoice._prepare_invoice_data_for_api(invoice)
 
-        # Process invoice lines with tax information
-        processed_lines = []
-        for line in invoice.invoice_line_ids:
-            line_data = {
-                'name': line.name,
-                'price_unit': line.price_unit,
-                'quantity': line.quantity,
-                'discount': line.discount,
-                'price_subtotal': line.price_subtotal,
-                'price_total': line.price_total,
-                'product_id': {
-                    'id': line.product_id.id if line.product_id else False,
-                    'name': line.product_id.name if line.product_id else '',
-                    'default_code': line.product_id.default_code if line.product_id else '',
-                },
-                'currency_id': {
-                    'id': line.currency_id.id,
-                    'name': line.currency_id.name,
-                    'decimal_places': line.currency_id.decimal_places,
-                },
-                'tax_ids': []
-            }
-            
-            # Process tax information for each line
-            for tax in line.tax_ids:
-                tax_data = {
-                    'id': tax.id,
-                    'name': tax.name,
-                    'amount': tax.amount,
-                    'price_include': tax.price_include,
-                    'tax_scope': getattr(tax, 'tax_scope', ''),
-                    'tipo_impuesto_dgii': getattr(tax, 'tipo_impuesto_dgii', None),
-                }
-                line_data['tax_ids'].append(tax_data)
-            
-            processed_lines.append(line_data)
-
-        # Helper function to safely format dates
-        def safe_date_format(date_obj):
-            if date_obj:
-                if isinstance(date_obj, (datetime, date)):
-                    return date_obj.strftime('%Y-%m-%d')
-                return str(date_obj)
-            return False
-
-        # Safely get NCF expiration date
-        ncf_expiration_date = getattr(invoice, 'ncf_expiration_date', None) or getattr(invoice.journal_id, 'l10n_do_ncf_expiration_date', None)
-
-        # Calculate tax_summary for DGII
-        tax_summary = self._calculate_tax_summary(invoice, processed_lines)
-        
-        # Build invoice_data dictionary
-        invoice_data = {
-            'record': {
-                'name': invoice.name,
-                'invoice_date': safe_date_format(invoice.invoice_date),
-                'l10n_latam_document_number': invoice.l10n_latam_document_number or '',
-                'l10n_do_fiscal_number': invoice.l10n_do_fiscal_number or '',
-                'ncf_expiration_date': safe_date_format(ncf_expiration_date),
-                'partner_id': {
-                    'name': invoice.partner_id.name or '',
-                    'vat': invoice.partner_id.vat or '',
-                    'street': invoice.partner_id.street or '',
-                    'state_name': invoice.partner_id.state_id.name if invoice.partner_id.state_id else '',
-                    'country_name': invoice.partner_id.country_id.name if invoice.partner_id.country_id else '',
-                    'email': invoice.partner_id.email or '',
-                },
-                'currency_id': {
-                    'id': invoice.currency_id.id,
-                    'name': invoice.currency_id.name,
-                    'decimal_places': invoice.currency_id.decimal_places,
-                },
-                'company_id': {
-                    'name': invoice.company_id.name,
-                    'vat': invoice.company_id.vat,
-                },
-                'l10n_do_origin_ncf': invoice.l10n_do_origin_ncf,
-                'debit_origin_id': invoice.debit_origin_id.id if invoice.debit_origin_id else False,
-                'withholded_itbis': getattr(invoice, 'withholded_itbis', 0.0),
-                'income_withholding': getattr(invoice, 'income_withholding', 0.0),
-            },
-            'lines': self._serialize_datetime_data(processed_lines),
-            'tax_totals': self._serialize_datetime_data(invoice.tax_totals) if hasattr(invoice, 'tax_totals') else {},
-            'amount_total': invoice.amount_total,
-            'amount_untaxed': invoice.amount_untaxed,
-            'amount_tax': invoice.amount_tax,
-            'tax_summary': self._serialize_datetime_data(tax_summary),
-        }
-
-        return invoice_data
-    
-    def _calculate_tax_summary(self, invoice, processed_lines):
-        """
-        Calculate tax summary for DGII from invoice and lines.
-        Returns dict with bases and amounts per ITBIS rate.
-        """
-        summary = {
-            'base_18': 0.0,
-            'itbis_18': 0.0,
-            'base_16': 0.0,
-            'itbis_16': 0.0,
-            'base_0': 0.0,
-            'itbis_0': 0.0,
-            'exento': 0.0,
-            'total_itbis': 0.0,
-            'itbis_retenido': getattr(invoice, 'withholded_itbis', 0.0),
-            'isr_retenido': getattr(invoice, 'income_withholding', 0.0),
-            'impuestos_adicionales': [],
-        }
-        
-        # Process each line
-        for line_data in processed_lines:
-            line_subtotal = line_data.get('price_subtotal', 0)
-            line_taxes = line_data.get('tax_ids', [])
-            
-            # Calculate taxes for this line
-            line_itbis = 0.0
-            line_base = line_subtotal
-            
-            for tax in line_taxes:
-                tax_amount = tax.get('amount', 0)
-                is_itbis = 'ITBIS' in tax.get('name', '')
-                is_retencion = tax_amount < 0
-                
-                if is_itbis and not is_retencion:
-                    if tax_amount == 18:
-                        line_itbis = line_base * 0.18
-                        summary['base_18'] += line_base
-                        summary['itbis_18'] += line_itbis
-                    elif tax_amount == 16:
-                        line_itbis = line_base * 0.16
-                        summary['base_16'] += line_base
-                        summary['itbis_16'] += line_itbis
-                    elif tax_amount == 0:
-                        summary['base_0'] += line_base
-                        summary['itbis_0'] += 0
-                
-                # Check for tipo_impuesto_dgii (impuestos adicionales)
-                tipo_impuesto = tax.get('tipo_impuesto_dgii')
-                if tipo_impuesto:
-                    # Calculate ISC amount (simplified)
-                    isc_amount = line_base * (tax_amount / 100) if tax_amount > 0 else 0
-                    summary['impuestos_adicionales'].append({
-                        'tipo': tipo_impuesto,
-                        'tasa': tax_amount,
-                        'monto': isc_amount,
-                    })
-            
-            summary['total_itbis'] += line_itbis
-        
-        # Add exempt amount (difference)
-        total_taxed = summary['base_18'] + summary['base_16'] + summary['base_0']
-        summary['exento'] = max(0, invoice.amount_untaxed - total_taxed)
-        
-        return summary
+    def _calculate_tax_summary(self, invoice, processed_lines=None):
+        """Retorna tax_summary desde Odoo (``compute_all``). ``processed_lines`` ignorado (compat. legado)."""
+        invoice.ensure_one()
+        return invoice._prepare_tax_summary_for_dgii_api(invoice)
 
     def save_and_send_xml(self):
         '''
@@ -350,16 +239,22 @@ class ItxXMLDataDGII(models.Model):
         # Prepare certificate data (base64 encoded)
         certificate_b64 = cre.certificate_file.decode('utf-8') if isinstance(cre.certificate_file, bytes) else cre.certificate_file
 
-        # Determine document type from record
-        type_document = self.doc_type_E(self.name)
+        # Tipo e-CF desde la factura (name puede ser TEMP-{id})
+        invoice = self.account_move_id
+        if not invoice:
+            raise UserError(_('No hay factura vinculada a este registro XML.'))
+        type_document = invoice.doc_type_E(invoice)
 
         # Determine document flow (ECF for fiscal documents, RFCE for simplified)
         document_flow = 'ECF'  # Default to ECF
         if type_document in ['E32', 'B02']:  # Consumo / Consumidor final
             document_flow = 'RFCE'
 
-        # Build invoice_data payload from Odoo records
-        invoice_data = self._prepare_invoice_data_payload()
+        # Mismo contrato que factura / preview: un solo armador
+        invoice_data = self.account_move_id._prepare_invoice_data_for_api(self.account_move_id)
+
+        # API: mode=test → _submit_mock (XSD + tracking TEST-*); mode=prod → DGII real
+        api_mode = 'test' if cre.dgii_client_mode == 'test' else 'prod'
 
         # Prepare payload for new DGII API
         payload = {
@@ -370,16 +265,17 @@ class ItxXMLDataDGII(models.Model):
             'certificate_password': cre.certificate_password,
             'rnc': cre.rnc,
             'environment': cre.dgii_environment or 'TesteCF',
+            'mode': api_mode,
+            'validate_xsd': cre.dgii_validate_xsd, # Nuevo campo para controlar validación XSD
         }
-
-        headers = {
-            'Content-Type': 'application/json',
-        }
+        _logger.info(
+            'DGII submit_invoice: api_mode=%s (itx.fe.dgii dgii_client_mode=%s)',
+            api_mode,
+            cre.dgii_client_mode,
+        )
 
         try:
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            response_data = response.json()
+            response_data = _post_dgii_json_route(api_url, payload, timeout=30)
 
             # Store the full response
             self.json_response_sent = json.dumps(response_data)
@@ -396,8 +292,55 @@ class ItxXMLDataDGII(models.Model):
                 if response_data.get('signature'):
                     self.signature = response_data.get('signature')
             else:
-                self.status = 'error'
-                error_msg = response_data.get('error', 'Error desconocido')
+                # Detect XSD / validation errors (mock or API)
+                validation_errors = response_data.get('validation_errors') or response_data.get('errors')
+                message = response_data.get('message') or response_data.get('error')
+
+                is_xsd_error = False
+                if validation_errors:
+                    is_xsd_error = True
+                elif isinstance(message, str) and 'xsd' in message.lower():
+                    is_xsd_error = True
+
+                # Build a detailed dgi_err_msg combining message + validation errors
+                parts = []
+                if message:
+                    parts.append(str(message))
+                if isinstance(validation_errors, list) and validation_errors:
+                    parts.extend(str(e) for e in validation_errors if e)
+                elif validation_errors:
+                    parts.append(str(validation_errors))
+
+                final_msg = " | ".join(parts) if parts else None
+
+                # Always store full API response for debugging
+                try:
+                    self.json_response_sent = json.dumps(response_data)
+                except Exception:
+                    pass
+
+                # Soft-handle XSD/validation failures: record in the itx.xml.data.dgii record
+                if is_xsd_error:
+                    self.status = 'error'
+                    # Mirror DGII rejection semantics in UI
+                    self.dgi_status = 'RECHAZADO'
+                    self.dgi_err_msg = final_msg or 'XSD validation failed'
+                    # Preserve track id if provided by mock
+                    if response_data.get('track_id'):
+                        self.track_id = response_data.get('track_id')
+                    _logger.warning(
+                        "XSD/Validation failure stored on record %s: %s",
+                        self.id,
+                        self.dgi_err_msg,
+                    )
+                    # Do not raise: let caller (action_post) continue and surface error in record UI
+                    return response_data
+
+                # Non-validation error: escalate as UserError (connection/auth/etc.)
+                error_msg = final_msg or (
+                    f"Error desconocido (status={response_data.get('status')})"
+                    if response_data.get('status') else 'Error desconocido'
+                )
                 _logger.error('Error al enviar XML a DGII: %s', error_msg)
                 self.dgi_err_msg = error_msg
                 raise UserError(_('Error al enviar a DGII: %s') % error_msg)
@@ -455,14 +398,8 @@ class ItxXMLDataDGII(models.Model):
             'environment': cre.dgii_environment or 'TesteCF',
         }
 
-        headers = {
-            'Content-Type': 'application/json',
-        }
-
         try:
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            response_data = response.json()
+            response_data = _post_dgii_json_route(api_url, payload, timeout=30)
 
             # Store the full response
             self.json_response = json.dumps(response_data)
@@ -474,25 +411,52 @@ class ItxXMLDataDGII(models.Model):
                 # Don't mark as error - might be still processing
                 raise UserError(_('Error al verificar estado: %s') % error_msg)
 
-            # Process status from new API response
+            # Process status from new API response (prod + mock unified contract)
             status = response_data.get('status')
+            status_u = str(status or '').strip().upper()
+            dgii_u = str(response_data.get('dgii_status') or '').strip().upper()
+            # Mock check_status: success, status=CHECKED, dgii_status=AUTORIZADO|EN_PROCESO|RECHAZADO
+            is_approved = status_u == 'APPROVED' or (
+                status_u == 'CHECKED' and dgii_u in ('AUTORIZADO', 'PROCESSED')
+            )
+            is_rejected = status_u == 'REJECTED' or (
+                status_u == 'CHECKED' and dgii_u == 'RECHAZADO'
+            )
+            is_pending = status_u == 'PENDING' or (
+                status_u == 'CHECKED' and dgii_u in ('EN_PROCESO', 'EN PROCESO')
+            )
 
-            if status == 'approved':
+            if is_approved:
                 self.status = 'procesed'
                 _logger.info("XML aprobado por DGII: %s, track_id: %s", self.name, self.track_id)
 
-                # Map response data to record fields
-                self.dgii_auth_number = response_data.get('authorization_number')
+                auth_num = response_data.get('authorization_number') or response_data.get(
+                    'auth_number'
+                )
+                self.dgii_auth_number = auth_num or self.dgii_auth_number
                 self.authorized = True
-                self.auth_number = response_data.get('authorization_number', '')
+                self.auth_number = auth_num if auth_num else (self.auth_number or '')
                 self.cufe = response_data.get('cufe', self.cufe)
 
-                # Store signed XML if returned
                 if response_data.get('signed_xml'):
                     self.signed_xml = response_data.get('signed_xml')
+                if response_data.get('signature'):
+                    self.signature = response_data.get('signature')
 
-                # Map additional fields if available
-                result_data = response_data.get('result', {})
+                auth_date_top = response_data.get('auth_date')
+                if auth_date_top:
+                    try:
+                        self.auth_date = fields.Date.to_date(auth_date_top)
+                    except (ValueError, TypeError):
+                        try:
+                            self.auth_date = fields.Date.from_string(str(auth_date_top)[:10])
+                        except (ValueError, TypeError):
+                            _logger.warning(
+                                "Could not parse auth_date from verify response: %s",
+                                auth_date_top,
+                            )
+
+                result_data = response_data.get('result') or {}
                 if result_data:
                     self.cufe = result_data.get('cufe', self.cufe)
                     self.doc_type = result_data.get('docType', self.doc_type)
@@ -501,7 +465,12 @@ class ItxXMLDataDGII(models.Model):
                     self.branch_cod = result_data.get('branchCod', self.branch_cod)
                     self.pos_cod = result_data.get('posCod', self.pos_cod)
                     self.fe_number = result_data.get('feNumber', self.fe_number)
-                    self.auth_date = result_data.get('authDate', self.auth_date)
+                    ad = result_data.get('authDate', self.auth_date)
+                    if ad:
+                        try:
+                            self.auth_date = fields.Date.to_date(ad)
+                        except (ValueError, TypeError):
+                            pass
                     self.pdf = result_data.get('pdf', self.pdf)
                     self.xml = result_data.get('xml', self.xml)
                     self.date_rec = result_data.get('dateRec', self.date_rec)
@@ -512,23 +481,20 @@ class ItxXMLDataDGII(models.Model):
                     self.sub_total = result_data.get('subTotal', self.sub_total)
                     self.tax_total = result_data.get('taxTotal', self.tax_total)
                     self.total = result_data.get('total', self.total)
-                    self.dgi_status = 'APROBADO'
 
-                # Update invoice fields for electronic dgii invoices
+                self.dgi_status = 'APROBADO'
+
                 if self.account_move_id and self.account_move_id.is_ecf_invoice and self.account_move_id.journal_id.is_dgii:
                     invoice_updates = {}
 
-                    # Security code (signature)
                     if self.signature:
                         invoice_updates['l10n_do_ecf_security_code'] = self.signature
                     elif result_data and result_data.get('qrL1'):
                         security_code = result_data.get('qrL1').split(': ', 1)[1] if ': ' in result_data.get('qrL1') else result_data.get('qrL1')
                         invoice_updates['l10n_do_ecf_security_code'] = security_code
 
-                    # Sign date
                     if result_data and result_data.get('qrL2'):
                         try:
-                            from datetime import datetime
                             date_str = result_data.get('qrL2').split(': ', 1)[1] if ': ' in result_data.get('qrL2') else result_data.get('qrL2')
                             sign_date = datetime.strptime(date_str, '%d-%m-%Y %H:%M:%S')
                             invoice_updates['l10n_do_ecf_sign_date'] = sign_date
@@ -539,19 +505,38 @@ class ItxXMLDataDGII(models.Model):
                         self.account_move_id.write(invoice_updates)
                         _logger.info("Updated invoice %s with verification data: %s", self.account_move_id.id, invoice_updates)
 
-            elif status == 'rejected':
+            elif is_rejected:
                 self.status = 'error'
                 self.dgi_status = 'RECHAZADO'
-                self.dgi_err_msg = response_data.get('error_message', 'Documento rechazado por DGII')
-                _logger.error("XML rechazado por DGII: %s, track_id: %s, error: %s",
-                             self.name, self.track_id, self.dgi_err_msg)
+                err_parts = [
+                    response_data.get('error_message'),
+                    response_data.get('rejection_reason'),
+                    response_data.get('error'),
+                ]
+                ve = response_data.get('validation_errors')
+                if isinstance(ve, list) and ve:
+                    err_parts.extend(str(x) for x in ve)
+                self.dgi_err_msg = ' | '.join(p for p in err_parts if p) or _(
+                    'Documento rechazado por DGII'
+                )
+                _logger.error(
+                    "XML rechazado por DGII: %s, track_id: %s, error: %s",
+                    self.name,
+                    self.track_id,
+                    self.dgi_err_msg,
+                )
 
-            elif status == 'pending':
+            elif is_pending:
                 _logger.info("XML aún en procesamiento en DGII: %s, track_id: %s", self.name, self.track_id)
                 self.dgi_status = 'EN PROCESO'
 
             else:
-                _logger.warning("Estado desconocido de DGII: %s para track_id: %s", status, self.track_id)
+                _logger.warning(
+                    "Estado desconocido de DGII: status=%s dgii_status=%s track_id=%s",
+                    status,
+                    response_data.get('dgii_status'),
+                    self.track_id,
+                )
 
         except requests.exceptions.Timeout:
             _logger.error('Timeout al verificar estado en DGII')
@@ -582,7 +567,7 @@ class ItxXMLDataDGII(models.Model):
         
         # Get the API URL from system parameters or use default
         api_base_url = self.env['ir.config_parameter'].sudo().get_param('dgii_api.base_url', 'http://localhost:8069')
-        api_url = f'{api_base_url}/generate_xml'
+        api_url = f'{api_base_url.rstrip("/")}/dgii/v1/generate_xml'
 
         # Gather data from the current record and related records
         invoice = self.account_move_id
@@ -674,8 +659,7 @@ class ItxXMLDataDGII(models.Model):
             'current_user_login_data': False,
         }
 
-        # Determine the document type based on the current record (self.name)
-        type_document = self.doc_type_E(self.name)
+        type_document = invoice.doc_type_E(invoice)
 
         # Prepare the payload for the API request in JSON-RPC format
         # Apply datetime serialization to the entire payload to ensure no datetime objects remain

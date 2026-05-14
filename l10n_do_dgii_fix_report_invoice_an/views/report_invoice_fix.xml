@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- <template id="report_invoice_document_fix"
+              inherit_id="account.report_invoice_document">
+
+
+
+        <xpath expr="//td[@name='td_quantity']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+        <xpath expr="//td[@name='td_price_unit']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+        <xpath expr="//td[@name='td_taxes']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+        <xpath expr="//td[@name='td_subtotal']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+
+        <!- - Imporante - ->
+        <xpath expr="//table[@name='invoice_line_table']" position="attributes">
+            <attribute name="style" add="table-layout: fixed;" separator=" "/>
+        </xpath>
+
+        <xpath expr="//th[@name='th_description']" position="attributes">
+            <attribute name="style">width: 35%; word-wrap: break-word;</attribute>
+        </xpath>
+
+        <xpath expr="//th[@name='th_quantity']" position="attributes">
+            <attribute name="style">width: 10%;</attribute>
+        </xpath>
+
+        <xpath expr="//th[@name='th_priceunit']" position="attributes">
+            <attribute name="style">width: 20%;</attribute>
+        </xpath>
+
+        <xpath expr="//th[@name='th_taxes']" position="attributes">
+            <attribute name="style">width: 15%;</attribute>
+        </xpath>
+
+        <xpath expr="//th[@name='th_subtotal']" position="attributes">
+            <attribute name="style">width: 20%;</attribute>
+        </xpath>
+
+
+    </template> -->
+
+    <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting.external_layout_standard_inherited">
+
+        <xpath expr="//div[hasclass('text-center')]" position="before">
+            <div t-if="o and 'l10n_do_webpos_electronic_stamp' in o and o.l10n_do_webpos_electronic_stamp" style="text-align: left; margin-bottom: 10px;">
+                <div style="display: inline-block; vertical-align: top;">
+                    <img t-if="o.l10n_do_webpos_electronic_stamp_encoded" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp_encoded"/>
+                </div>
+                <div style="display: inline-block; vertical-align: top; margin-left: 10px;">
+                    <t t-if="o.l10n_do_ecf_security_code">
+                        <strong>Código de Seguridad:</strong><br/>
+                        <span t-out="o.l10n_do_ecf_security_code"/>
+                    </t>
+                    <br/>
+                    <t t-if="o.l10n_do_ecf_sign_date">
+                        <strong>Fecha Firma Digital:</strong><br/>
+                        <span t-out="context_timestamp(o.l10n_do_ecf_sign_date).strftime('%d-%m-%Y %H:%M:%S')"/>
+                    </t>
+                </div>
+            </div>
+        </xpath>
+
+    </template>
+
+</odoo>

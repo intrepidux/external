@@ -1,3 +1,7 @@
+from . import res_municipality
+from . import res_country_state_inherit
+from . import res_partner_inherit
+
 from . import tipo_pago_dgii
 from . import account_payment_inherit
 from . import account_payment_register_inherit

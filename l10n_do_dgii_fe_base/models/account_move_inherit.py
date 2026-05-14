@@ -7,6 +7,7 @@ import json
 from urllib.parse import quote
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+from odoo.tools.float_utils import float_round
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -18,11 +19,16 @@ class AccountMove(models.Model):
     _inherit = 'account.move'
     _description = 'Herencia para editar el post de la factura dgii'
 
-    # Mapeo de tipos E-CF para DGII (referencia estándar DGII)
+    # Mapeo de tipos E-CF para DGII (solo prefijos numéricos E##; sin serie B / sin fallback FF|FC)
     E_CF_VENTAS = ["31", "32", "44", "45", "46"]
     E_CF_COMPRAS = ["41", "43", "47"]
     E_CF_AJUSTES = ["33", "34"]
- 
+
+    # Tipos e-CF admitidos por la API unificada DGII (E31–E47 según catálogo).
+    _VALID_ECF_API_TYPES = frozenset({
+        'E31', 'E32', 'E33', 'E34', 'E41', 'E43', 'E44', 'E45', 'E46', 'E47',
+    })
+
     itx_dgii_xml_data_raw = fields.Text('XML Data Raw')
     itx_xml_data_ids = fields.One2many('itx.xml.data.dgii', 'account_move_id', string='XML Data ids')
 
@@ -315,20 +321,23 @@ class AccountMove(models.Model):
 
     def _is_l10n_do_dgii_allowed_document(self):
         self.ensure_one()
-        # Si no es factura electrónica o no tiene número de documento o no es diario dgii, no está permitida
-        if not self.is_ecf_invoice or not self.l10n_latam_document_number or not self.journal_id.is_dgii:
+        if not self.is_ecf_invoice or not self.journal_id.is_dgii:
             return False
 
-        # Extraer el tipo (ej. '31' de 'E310000000005')
-        # El tipo son los dos dígitos después de la 'E'
-        tipo_ecf = self.l10n_latam_document_number[1:3]
+        # Tipo desde el tipo de documento latino (no desde el número: puede ser TEMP-{id})
+        doc_type = self.l10n_latam_document_type_id
+        if not doc_type:
+            return False
+        prefix = doc_type.doc_code_prefix or ''
+        if not prefix.startswith('E') or len(prefix) < 3:
+            return False
+        tipo_ecf = prefix[1:3]
+
         flujo = "ventas" if self.move_type.startswith("out_") else "compras"
 
         if flujo == "ventas":
-            # Ventas directas + Notas de crédito/débito que afecten ventas
             return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES
-        elif flujo == "compras":
-            # Compras (remitidas en 606) + Notas que afecten gastos
+        if flujo == "compras":
             return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
         return False
 
@@ -344,9 +353,8 @@ class AccountMove(models.Model):
         for invoice in invoices:
             if not invoice._is_l10n_do_dgii_allowed_document():
                 _logger.debug(
-                    "DGII skipped for invoice %s: type %s not allowed",
+                    "DGII skipped for invoice %s: document type not allowed for DGII",
                     invoice.id,
-                    invoice.l10n_latam_document_number[1:3] if invoice.l10n_latam_document_number else "N/A"
                 )
                 continue
             # Validar antes de confirmar (solo para DGII y solo si es un documento permitido)
@@ -360,8 +368,20 @@ class AccountMove(models.Model):
                 execute_EF = invoice.create_xml_data(invoice, xml_data)
                 # Las validaciones duplicadas aquí se eliminan ya que _validate_dgii_invoice() las maneja
                 execute_EF.save_and_send_xml()
-                execute_EF.verify_sent_encf()
-                if invoice.l10n_latam_document_number.startswith("TEMP-"):
+                # Only verify with DGII if the submit succeeded and a track_id is available.
+                # In case of XSD/validation failures the save_and_send_xml stores the error
+                # on the itx.xml.data.dgii record and does NOT raise.
+                if getattr(execute_EF, 'status', None) == 'sent' and getattr(execute_EF, 'track_id', False):
+                    try:
+                        execute_EF.verify_sent_encf()
+                    except Exception as e:
+                        # Log and continue: verification can fail independently and should not
+                        # block invoice posting flow here.
+                        _logger.warning("DGII verification failed for invoice %s: %s", invoice.id, str(e))
+                if (
+                    invoice.l10n_latam_document_number
+                    and invoice.l10n_latam_document_number.startswith("TEMP-")
+                ):
                     document_number = (
                         invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
                     )
@@ -375,7 +395,7 @@ class AccountMove(models.Model):
                         invoice.itx_xml_data_id.name = document_number
             except Exception as e:
                 raise UserError(
-                    _("Error al crear el documento Electronico: %s" % str(e))
+                    _("Error al crear el documento Electronico: %s") % str(e)
                 )
             invoice.xml_print_to_std(xml_content)
 
@@ -502,6 +522,194 @@ class AccountMove(models.Model):
     #    _logger.error("<-- accountInvoice --> IT IS Error 4")
     #t    return inv
 
+    def _prepare_payments_list_for_dgii_api(self, invoice):
+        """Lista canónica para itx_dgii_api: amount + code_payment_dgii (+ id/name)."""
+        self.ensure_one()
+        if invoice.move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'):
+            return []
+        per_payment_amount = {}
+        term_lines = invoice.line_ids.filtered(
+            lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable')
+        )
+        for line in term_lines:
+            for partial in (line.matched_credit_ids | line.matched_debit_ids):
+                counterpart = (
+                    partial.debit_move_id
+                    if partial.credit_move_id == line
+                    else partial.credit_move_id
+                )
+                move = counterpart.move_id
+                if move == invoice:
+                    continue
+                pay = move.payment_id
+                if not pay:
+                    continue
+                per_payment_amount[pay.id] = per_payment_amount.get(pay.id, 0.0) + float(
+                    partial.amount
+                )
+        out = []
+        for pid, amount in per_payment_amount.items():
+            pay = self.env['account.payment'].browse(pid)
+            code = ''
+            if pay.type_payment_id:
+                code = pay.type_payment_id.code_payment_dgii or ''
+            out.append({
+                'amount': amount,
+                'code_payment_dgii': code,
+                'id': pay.id,
+                'name': pay.name or pay.move_id.name or '',
+            })
+        return out
+
+    def _dgii_tipo_pago_from_invoice(self, invoice):
+        """DGII TipoPago: 1 contado, 2 crédito, 3 gratuito."""
+        v = getattr(invoice, 'l10n_do_tipo_pago', None)
+        if v not in (None, False, ''):
+            return str(v).strip()
+        pt = invoice.invoice_payment_term_id
+        if pt and any(getattr(l, 'days', 0) > 0 for l in pt.line_ids):
+            return '2'
+        return '1'
+
+    def _dgii_geo_codes_for_partner(self, partner):
+        """Códigos XSD ProvinciaMunicipioType para payload API (emisor/comprador).
+
+        Orden: modelo conector (res.municipality + state.ecf_code), luego Char legacy.
+        """
+        out = {'dgii_municipio_code': '', 'dgii_provincia_code': ''}
+        if not partner:
+            return out
+        muni = getattr(partner, 'res_municipality_id', None)
+        if muni and getattr(muni, 'ecf_code', None):
+            s = str(muni.ecf_code).strip()
+            if s:
+                out['dgii_municipio_code'] = s
+        st = partner.state_id
+        if st and getattr(st, 'ecf_code', None):
+            s = str(st.ecf_code).strip()
+            if s:
+                out['dgii_provincia_code'] = s
+        if not out['dgii_municipio_code']:
+            mc = getattr(partner, 'municipio_ecf', None)
+            if mc:
+                out['dgii_municipio_code'] = str(mc).strip()
+        if not out['dgii_provincia_code']:
+            pc = getattr(partner, 'provincia_ecf', None)
+            if pc:
+                out['dgii_provincia_code'] = str(pc).strip()
+        return out
+
+    def _prepare_tax_summary_for_dgii_api(self, invoice=None):
+        """Totales impositivos e-CF desde Odoo (``tax_ids.compute_all``), estilo l10n_do_ecf_invoicing.
+
+        Contrato enviado en ``invoice_data['tax_summary']`` para la API/plantillas (opción C: Odoo es la fuente).
+        Claves: base_18, itbis_18, base_16, itbis_16, base_0, itbis_0, exento, total_itbis,
+        itbis_retenido, isr_retenido, impuestos_adicionales (lista; reservado / vacío si no aplica).
+        """
+        inv = invoice or self
+        inv.ensure_one()
+        currency = inv.currency_id
+        prec = currency.decimal_places
+        doc_ecf = inv.doc_type_E(inv)
+        is_e46 = doc_ecf == 'E46'
+
+        summary = {
+            'base_18': 0.0,
+            'itbis_18': 0.0,
+            'base_16': 0.0,
+            'itbis_16': 0.0,
+            'base_0': 0.0,
+            'itbis_0': 0.0,
+            'exento': 0.0,
+            'total_itbis': 0.0,
+            'itbis_retenido': 0.0,
+            'isr_retenido': 0.0,
+            'impuestos_adicionales': [],
+        }
+
+        is_refund = inv.move_type in ('out_refund', 'in_refund')
+        for line in inv.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
+            if not line.tax_ids:
+                continue
+            price_unit_disc = line.price_unit * (1.0 - (line.discount or 0.0) / 100.0)
+            com_all = line.tax_ids.compute_all(
+                price_unit_disc,
+                currency=currency,
+                quantity=line.quantity,
+                product=line.product_id,
+                partner=line.move_id.partner_id,
+                is_refund=is_refund,
+            )
+            for tax in com_all.get('taxes', []):
+                tax_id = inv.env['account.tax'].browse(tax['id'])
+                tg = (tax_id.tax_group_id.name or '') if tax_id.tax_group_id else ''
+                tg_u = tg.upper()
+                base = float(tax.get('base') or 0.0)
+                amt = float(tax.get('amount') or 0.0)
+
+                if not amt and not is_e46:
+                    summary['exento'] += base
+                    continue
+
+                if tax_id.amount < 0:
+                    if 'ITBIS' in tg_u:
+                        summary['itbis_retenido'] += abs(amt)
+                    elif 'ISR' in tg_u or 'RETENCION' in tg_u:
+                        summary['isr_retenido'] += abs(amt)
+                    continue
+
+                if abs(float(tax_id.amount) - 1.8) < 1e-9 and 'ITBIS' in tg_u:
+                    summary['itbis_18'] += amt
+                    base_18_normal = amt / 0.18 if abs(amt) > 1e-12 else 0.0
+                    monto_exento_18 = base - base_18_normal
+                    summary['base_18'] += base_18_normal
+                    if monto_exento_18 > 0:
+                        summary['exento'] += monto_exento_18
+                    continue
+
+                if tax_id.amount == 18 and 'ITBIS' in tg_u:
+                    summary['base_18'] += base
+                    summary['itbis_18'] += amt
+                elif tax_id.amount == 16 and 'ITBIS' in tg_u:
+                    summary['base_16'] += base
+                    summary['itbis_16'] += amt
+                elif tax_id.amount == 0 and is_e46 and 'ITBIS' in tg_u:
+                    summary['base_0'] += base
+                    summary['itbis_0'] += amt
+
+        summary['itbis_retenido'] += float(getattr(inv, 'withholded_itbis', 0.0) or 0.0)
+        summary['isr_retenido'] += float(getattr(inv, 'income_withholding', 0.0) or 0.0)
+
+        summary['total_itbis'] = summary['itbis_18'] + summary['itbis_16'] + summary['itbis_0']
+
+        for key in (
+            'base_18', 'itbis_18', 'base_16', 'itbis_16', 'base_0', 'itbis_0',
+            'exento', 'total_itbis', 'itbis_retenido', 'isr_retenido',
+        ):
+            summary[key] = float_round(summary[key], precision_digits=prec)
+
+        gravado = summary['base_18'] + summary['base_16'] + summary['base_0']
+        untaxed = float_round(inv.amount_untaxed or 0.0, precision_digits=prec)
+        if float_round(gravado + summary['exento'], precision_digits=prec) != untaxed:
+            _logger.warning(
+                'DGII tax_summary: gravado+exento (%s) != amount_untaxed (%s) en %s',
+                gravado + summary['exento'],
+                untaxed,
+                inv.display_name,
+            )
+
+        amt_tax = float_round(inv.amount_tax or 0.0, precision_digits=prec)
+        if summary['total_itbis'] != amt_tax:
+            # amount_tax puede incluir impuestos no-ITBIS o retenciones en asiento; no es error duro
+            _logger.info(
+                'DGII tax_summary: total_itbis (%s) vs move.amount_tax (%s) en %s — revisar si aplica.',
+                summary['total_itbis'],
+                amt_tax,
+                inv.display_name,
+            )
+
+        return summary
+
     def _prepare_invoice_data_for_api(self, invoice):
         """Prepare comprehensive invoice data for API with robust error handling"""
         try:
@@ -514,6 +722,11 @@ class AccountMove(models.Model):
                 'country_name': invoice.partner_id.country_id.name if invoice.partner_id.country_id else '',
                 'email': invoice.partner_id.email or ''
             }
+            p_geo = invoice._dgii_geo_codes_for_partner(invoice.partner_id)
+            if p_geo.get('dgii_municipio_code'):
+                partner_data['dgii_municipio_code'] = p_geo['dgii_municipio_code']
+            if p_geo.get('dgii_provincia_code'):
+                partner_data['dgii_provincia_code'] = p_geo['dgii_provincia_code']
 
             # Prepare currency data
             currency_data = {
@@ -523,14 +736,35 @@ class AccountMove(models.Model):
                 'inverse_rate': invoice._get_fiscal_rate()
             }
 
-            # Prepare company data with fallback
-            company_data = {}
+            # Datos de compañía para API (sin campos legacy tipo WebPOS: companyLicCod, branchCod, posCod)
+            c_partner = invoice.company_id.partner_id
+            company_data = {
+                'id': invoice.company_id.id,
+                'name': invoice.company_id.name or '',
+                'vat': ''.join(filter(str.isdigit, invoice.company_id.vat or '')),
+                'street': (invoice.company_id.street or (c_partner.street if c_partner else '') or ''),
+                'city': (c_partner.city if c_partner else '') or (invoice.company_id.city or ''),
+            }
+            if c_partner:
+                company_data['partner_id'] = {
+                    'name': c_partner.name or '',
+                    'commercial_partner_id': {
+                        'name': (c_partner.commercial_partner_id.name or c_partner.name or ''),
+                    },
+                }
+                em_geo = invoice._dgii_geo_codes_for_partner(c_partner)
+                if em_geo.get('dgii_municipio_code'):
+                    company_data['dgii_municipio_code'] = em_geo['dgii_municipio_code']
+                if em_geo.get('dgii_provincia_code'):
+                    company_data['dgii_provincia_code'] = em_geo['dgii_provincia_code']
             if hasattr(invoice.company_id, 'fe_dgii_id') and invoice.company_id.fe_dgii_id:
+                fe = invoice.company_id.fe_dgii_id.filtered(lambda r: r.active)[:1] or invoice.company_id.fe_dgii_id[:1]
                 company_data['fe_dgii_id'] = [{
-                    'name': invoice.company_id.name or 'TEST',
-                    'companyLicCod': invoice.company_id.fe_dgii_id[0].companyLicCod if invoice.company_id.fe_dgii_id else 'UNKNOWN',
-                    'branchCod': invoice.company_id.fe_dgii_id[0].branchCod if invoice.company_id.fe_dgii_id else '001',
-                    'posCod': invoice.company_id.fe_dgii_id[0].posCod if invoice.company_id.fe_dgii_id else '001'
+                    'id': fe.id,
+                    'name': fe.name or invoice.company_id.name or '',
+                    'rnc': fe.rnc or '',
+                    'dgii_environment': fe.dgii_environment,
+                    'dgii_client_mode': fe.dgii_client_mode,
                 }]
 
             # Prepare invoice lines data
@@ -544,9 +778,12 @@ class AccountMove(models.Model):
                         'price_include': tax.price_include or False,
                         'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
                     }
-                    # Map tipo_impuesto_dgii exclusively for ITBIS taxes (group "ITBIS" and positive amount)
-                    if tax.tax_group_id.name == 'ITBIS' and tax.amount > 0:
-                        tax_data['tipo_impuesto_dgii_itbis'] = tax.tipo_impuesto_dgii
+                    tg_name = tax.tax_group_id.name if tax.tax_group_id else ''
+                    tipo_dgii = getattr(tax, 'tipo_impuesto_dgii', None)
+                    if tipo_dgii not in (None, False):
+                        tax_data['tipo_impuesto_dgii'] = tipo_dgii
+                        if tg_name == 'ITBIS':
+                            tax_data['tipo_impuesto_dgii_itbis'] = tipo_dgii
                     line_taxes.append(tax_data)
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
@@ -565,10 +802,12 @@ class AccountMove(models.Model):
                 lines_data.append({
                     'name': self.get_clean_description(line),
                     'quantity': line.quantity or 0.0,
+                    'discount': line.discount or 0.0,
                     'price_unit': adjusted_price_unit,
                     'price_subtotal': line.price_subtotal or 0.0,
                     'price_total': line.price_total or 0.0,
                     'tax_ids': line_taxes,
+                    'product_code': line.product_id.default_code or '',
                     'product_id': {
                         'name': line.product_id.name or '',
                         'default_code': line.product_id.default_code or False
@@ -645,23 +884,32 @@ class AccountMove(models.Model):
             else:
                 l10n_do_origin_ncf_date = ''
 
+            payments_list = invoice._prepare_payments_list_for_dgii_api(invoice)
+            tipo_pago_dgii = invoice._dgii_tipo_pago_from_invoice(invoice)
+
             # Prepare main invoice record data
             record_data = {
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
                 'l10n_latam_document_number': invoice.l10n_latam_document_number or '',
+                'l10n_do_ecf_security_code': (invoice.l10n_do_ecf_security_code or '').strip() or None,
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
                 'l10n_do_income_type': invoice.l10n_do_income_type,
                 'l10n_do_ecf_modification_code': ecf_modification_code,
+                'l10n_do_tipo_pago': tipo_pago_dgii,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,
                 'invoice_payments_widget': getattr(invoice, 'invoice_payments_widget', None),
-                'payment_ids': [],  # Add payment data if needed
                 'reversed_entry_id': invoice.reversed_entry_id.id if invoice.reversed_entry_id else None,
                 'debit_origin_id': invoice.debit_origin_id.id if invoice.debit_origin_id else None,
                 'lines': lines_data,
+                'amount_total': float(invoice.amount_total or 0.0),
+                'amount_untaxed': float(invoice.amount_untaxed or 0.0),
+                'amount_tax': float(invoice.amount_tax or 0.0),
+                'withholded_itbis': float(getattr(invoice, 'withholded_itbis', 0.0) or 0.0),
+                'income_withholding': float(getattr(invoice, 'income_withholding', 0.0) or 0.0),
                 'aditional_info_invoice_header1': getattr(invoice, 'aditional_info_invoice_header1', ''),
                 'aditional_info_invoice_header2': getattr(invoice, 'aditional_info_invoice_header2', ''),
             }
@@ -678,10 +926,19 @@ class AccountMove(models.Model):
             # Limpia fechas antes de serializar
             record_data_clean = clean_dates(record_data)
             lines_data_clean = clean_dates(lines_data)
+            record_data_clean['lines'] = lines_data_clean
+            payments_clean = clean_dates(payments_list)
+            tax_summary = invoice._prepare_tax_summary_for_dgii_api(invoice)
+            tax_summary = clean_dates(tax_summary)
             _logger.error("API DATA: %s", json.dumps(record_data_clean, indent=2))
             return {
                 'record': record_data_clean,
                 'lines': lines_data_clean,
+                'payments': payments_clean,
+                'tax_summary': tax_summary,
+                'amount_total': float(invoice.amount_total or 0.0),
+                'amount_untaxed': float(invoice.amount_untaxed or 0.0),
+                'amount_tax': float(invoice.amount_tax or 0.0),
             }
 
         except Exception as e:
@@ -730,21 +987,27 @@ class AccountMove(models.Model):
             _logger.info("Calling DGII API with type_document: %s", type_document)
             _logger.info("API Request Data: %s", json.dumps(api_data, indent=2))
             
-            response = self._call_dgii_api('/generate_xml', api_data)
+            response = self._call_dgii_api('/dgii/v1/generate_xml', api_data)
             
-            # Log the full API response
-            _logger.info("DGII API Response:")
-            _logger.info(json.dumps(response, indent=2))
-            
-            # Check for errors in the response
-            if 'error' in response:
-                _logger.error("XML Generation API Error: %s", response['error'])
-                raise UserError(_('XML Generation Error: %s') % response['error'])
-            
-            # Extract XML content
-            xml_content = response.get('result', {}).get('xml_content', '')
-            xml_name = response.get('result', {}).get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
-            
+            # JSON-RPC: cuerpo útil en result; errores de red/rpc arriba en response['error']
+            if response.get('error'):
+                rpc_err = response['error']
+                if isinstance(rpc_err, dict):
+                    rpc_err = rpc_err.get('message') or rpc_err.get('data') or str(rpc_err)
+                _logger.error("XML Generation JSON-RPC error: %s", rpc_err)
+                raise UserError(_('XML Generation (RPC): %s') % rpc_err)
+
+            res = response.get('result') or {}
+            _logger.info("DGII API result keys: %s", list(res.keys()))
+            if res.get('error') or res.get('success') is False:
+                api_err = res.get('error') or _('La API devolvió error sin mensaje')
+                _logger.error("XML Generation API Error: %s", api_err)
+                raise UserError(_('XML Generation Error: %s') % api_err)
+
+            # Compat: respuestas sin 'success' explícito pero con xml_content
+            xml_content = res.get('xml_content') or ''
+            xml_name = res.get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
+
             # Additional validation of XML content
             if not xml_content:
                 _logger.error("No XML content generated for invoice %s", invoice.id)
@@ -756,6 +1019,8 @@ class AccountMove(models.Model):
             
             return xml_content, xml_name
             
+        except UserError:
+            raise
         except Exception as e:
             # Comprehensive error logging
             _logger.error("Detailed Error in build_xml_to_print:")
@@ -799,62 +1064,42 @@ class AccountMove(models.Model):
 
     def doc_type_E(self, invoice):
         """
-        Determines the appropriate DGII API document type (FF, FC, D, C, etc.)
-        based on the invoice's NCF or move type.
-        
-        NOTE: This module is primarily designed to work with 'Serie E' electronic invoices (e-NCFs).
-        While it handles other NCF types for mapping purposes, the main focus is on e-invoices.
+        Tipo e-CF (E31–E47) para API DGII, solo desde prefijo **E##** en tipo LATAM o e-NCF.
+
+        No hay conversión desde serie B, códigos cortos (FF/FC/…) ni `move_type` genérico:
+        cada localización debe asignar e-NCF/tipo con prefijo electrónico.
         """
         import re
         doc_type = None
 
-        # 1. Prioritize NCF type from l10n_latam_document_number
-        if invoice.l10n_latam_document_number:
-            _logger.info(f"EX347 0 Latam Document {invoice.l10n_latam_document_number}")
-            # Try to match the full NCF type (e.g., 'E31', 'B02')
-            ncf_match = re.match(r'^(E\d{2}|B\d{2})', invoice.l10n_latam_document_number)
+        latam_dt = getattr(invoice, 'l10n_latam_document_type_id', None)
+        if latam_dt and getattr(latam_dt, 'doc_code_prefix', None):
+            prefix = (latam_dt.doc_code_prefix or '').strip()
+            ecf_from_type = re.match(r'^(E\d{2})', prefix, re.IGNORECASE)
+            if ecf_from_type:
+                doc_type = ecf_from_type.group(1).upper()
+
+        if doc_type is None and invoice.l10n_latam_document_number:
+            _logger.info("EX347 0 Latam Document %s", invoice.l10n_latam_document_number)
+            ncf_match = re.match(r'^(E\d{2})', invoice.l10n_latam_document_number, re.I)
             if ncf_match:
-                ncf_prefix = ncf_match.group(1)
-                _logger.info(f"EX347 1 Prefix ncf {ncf_prefix}")
-                doc_type = self._API_DOCUMENT_TYPE_MAP.get(ncf_prefix)
-                _logger.info(f"EX347 2 Prefix ncf mapped {ncf_prefix}")
-                if doc_type:
-                    _logger.info(f"Resolved document type from NCF prefix {ncf_prefix}: {doc_type}")
-                    return doc_type
+                doc_type = ncf_match.group(1).upper()
+                _logger.info("EX347 1 e-CF desde NCF: %s", doc_type)
 
-            # Fallback for short alphanumeric codes if they appear at the beginning of the number
-            short_code_match = re.match(r'^(FF|FC|D|C|P|E|FE|FG|FX|PY)', invoice.l10n_latam_document_number)
-            if short_code_match:
-                short_code = short_code_match.group(1)
-                doc_type = self._API_DOCUMENT_TYPE_MAP.get(short_code)
-                if doc_type:
-                    _logger.info(f"Resolved document type from short NCF code {short_code}: {doc_type}")
-                    return doc_type
-            
-            # Fallback for numeric codes if they appear at the beginning of the number
-            numeric_code_match = re.match(r'^(\d{2})', invoice.l10n_latam_document_number)
-            if numeric_code_match:
-                numeric_code = numeric_code_match.group(1)
-                doc_type = self._API_DOCUMENT_TYPE_MAP.get(numeric_code)
-                if doc_type:
-                    _logger.info(f"Resolved document type from numeric code {numeric_code}: {doc_type}")
-                    return doc_type
+        if doc_type:
+            if doc_type not in self._VALID_ECF_API_TYPES:
+                raise UserError(
+                    _('Tipo e-CF %s no está en el catálogo API (E31, E32, E33, E34, E41, E43–E47).')
+                    % doc_type
+                )
+            return doc_type
 
-        # 2. Fallback to move_type and debit/credit note origin
-        if invoice.move_type:
-            # Custom logic for debit notes (out_invoice with debit_origin_id)
-            if invoice.move_type == 'out_invoice' and invoice.debit_origin_id:
-                doc_type = self._API_DOCUMENT_TYPE_MAP.get('out_debit')
-            else:
-                doc_type = self._API_DOCUMENT_TYPE_MAP.get(invoice.move_type)
-
-            if doc_type:
-                _logger.info(f"Resolved document type from move_type {invoice.move_type}: {doc_type}")
-                return doc_type
-
-        # 3. Default if no specific type is found
-        _logger.warning(f"Could not determine specific document type for invoice {invoice.id} (NCF: {invoice.l10n_latam_document_number}, Name: {invoice.name}, Move Type: {invoice.move_type}). Defaulting to FF.")
-        return 'FF' # Default to Fiscal Invoice (FF) if nothing else matches
+        raise UserError(
+            _('No se pudo determinar el tipo e-CF (E31–E47). '
+              'Defina un tipo de documento o e-NCF con prefijo E## (p. ej. E320000000001). '
+              '(Factura %(inv)s).')
+            % {'inv': invoice.display_name or invoice.id}
+        )
 
     # funciones heredadas de itx_xml_data_id
     def action_resend_xml(self):
@@ -866,7 +1111,7 @@ class AccountMove(models.Model):
             # Si no existe, crea un nuevo registro en itx.xml.data.dgii
             # Determine document type based on current invoice characteristics
             doc_type = self.doc_type_E(self) # Pass the invoice object
-            _logger_.info("EX444 0 doctype rebuild {doc_type}")
+            _logger.info("EX444 0 doctype rebuild %s", doc_type)
             xml_content, xml_name = self.build_xml_to_print(self, doc_type)  # Genera el contenido XML
             xml_data = self.env['itx.xml.data.dgii'].create({
                 'name': self.l10n_latam_document_number,  # O el campo que desees usar

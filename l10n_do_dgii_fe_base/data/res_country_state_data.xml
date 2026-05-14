@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="base.state_DO_01" model="res.country.state">
+            <field name="ecf_code">010000</field>
+        </record>
+        <record id="base.state_DO_02" model="res.country.state">
+            <field name="ecf_code">020000</field>
+        </record>
+        <record id="base.state_DO_03" model="res.country.state">
+            <field name="ecf_code">030000</field>
+        </record>
+        <record id="base.state_DO_04" model="res.country.state">
+            <field name="ecf_code">040000</field>
+        </record>
+        <record id="base.state_DO_05" model="res.country.state">
+            <field name="ecf_code">050000</field>
+        </record>
+        <record id="base.state_DO_06" model="res.country.state">
+            <field name="ecf_code">060000</field>
+        </record>
+        <record id="base.state_DO_07" model="res.country.state">
+            <field name="ecf_code">070000</field>
+        </record>
+        <record id="base.state_DO_08" model="res.country.state">
+            <field name="ecf_code">080000</field>
+        </record>
+        <record id="base.state_DO_09" model="res.country.state">
+            <field name="ecf_code">090000</field>
+        </record>
+        <record id="base.state_DO_10" model="res.country.state">
+            <field name="ecf_code">100000</field>
+        </record>
+        <record id="base.state_DO_11" model="res.country.state">
+            <field name="ecf_code">110000</field>
+        </record>
+        <record id="base.state_DO_12" model="res.country.state">
+            <field name="ecf_code">120000</field>
+        </record>
+        <record id="base.state_DO_13" model="res.country.state">
+            <field name="ecf_code">130000</field>
+        </record>
+        <record id="base.state_DO_14" model="res.country.state">
+            <field name="ecf_code">140000</field>
+        </record>
+        <record id="base.state_DO_15" model="res.country.state">
+            <field name="ecf_code">150000</field>
+        </record>
+        <record id="base.state_DO_16" model="res.country.state">
+            <field name="ecf_code">160000</field>
+        </record>
+        <record id="base.state_DO_17" model="res.country.state">
+            <field name="ecf_code">170000</field>
+        </record>
+        <record id="base.state_DO_18" model="res.country.state">
+            <field name="ecf_code">180000</field>
+        </record>
+        <record id="base.state_DO_19" model="res.country.state">
+            <field name="ecf_code">190000</field>
+        </record>
+        <record id="base.state_DO_20" model="res.country.state">
+            <field name="ecf_code">200000</field>
+        </record>
+        <record id="base.state_DO_21" model="res.country.state">
+            <field name="ecf_code">210000</field>
+        </record>
+        <record id="base.state_DO_22" model="res.country.state">
+            <field name="ecf_code">220000</field>
+        </record>
+        <record id="base.state_DO_23" model="res.country.state">
+            <field name="ecf_code">230000</field>
+        </record>
+        <record id="base.state_DO_24" model="res.country.state">
+            <field name="ecf_code">240000</field>
+        </record>
+        <record id="base.state_DO_25" model="res.country.state">
+            <field name="ecf_code">250000</field>
+        </record>
+        <record id="base.state_DO_26" model="res.country.state">
+            <field name="ecf_code">260000</field>
+        </record>
+        <record id="base.state_DO_27" model="res.country.state">
+            <field name="ecf_code">270000</field>
+        </record>
+        <record id="base.state_DO_28" model="res.country.state">
+            <field name="ecf_code">280000</field>
+        </record>
+        <record id="base.state_DO_29" model="res.country.state">
+            <field name="ecf_code">290000</field>
+        </record>
+        <record id="base.state_DO_30" model="res.country.state">
+            <field name="ecf_code">300000</field>
+        </record>
+        <record id="base.state_DO_31" model="res.country.state">
+            <field name="ecf_code">310000</field>
+        </record>
+        <record id="base.state_DO_32" model="res.country.state">
+            <field name="ecf_code">320000</field>
+        </record>
+    </data>
+</odoo>

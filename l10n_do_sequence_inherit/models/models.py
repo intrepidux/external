@@ -46,7 +46,7 @@ class AccountMove(models.Model):
         ('danger', 'Danger')
     ], string="Alert Level", compute="_compute_sequence_details", store=False)
 
-    @api.depends('l10n_do_fiscal_number', 'l10n_latam_document_type_id', 'company_id')
+    @api.depends('l10n_latam_document_number', 'l10n_latam_document_type_id', 'company_id')
     def _compute_sequence_details(self):
         for record in self:
             if not record.l10n_latam_document_type_id or not record.company_id:
@@ -71,10 +71,10 @@ class AccountMove(models.Model):
 
             # Get current sequence number from fiscal number
             current_number = 0
-            if record.l10n_do_fiscal_number and record.l10n_do_fiscal_number.strip():
+            if record.l10n_latam_document_number and record.l10n_latam_document_number.strip():
                 try:
                     # Extract number from fiscal number (assuming format like "B0100000001")
-                    current_number = int(record.l10n_do_fiscal_number[3:])
+                    current_number = int(record.l10n_latam_document_number[3:])
                 except (ValueError, IndexError):
                     current_number = 0
 
@@ -95,7 +95,7 @@ class AccountMove(models.Model):
                 record.sequence_alert_level = 'none'
                 record.sequence_alert_message = ""
 
-    @api.constrains('l10n_latam_document_type_id', 'company_id', 'l10n_do_fiscal_number')
+    @api.constrains('l10n_latam_document_type_id', 'company_id', 'l10n_latam_document_number')
     def _check_sequence_configuration(self):
         for record in self:
             if record.move_type not in ['in_invoice', 'in_refund'] and record.l10n_latam_document_type_id and record.company_id:
@@ -108,9 +108,9 @@ class AccountMove(models.Model):
                     raise UserError(_("No se puede confirmar la factura. Las secuencias para este tipo de documento no han sido configuradas. Por favor, configure el máximo de comprobantes antes de continuar."))
 
                 # Check if sequences are exhausted
-                if record.l10n_do_fiscal_number and record.l10n_do_fiscal_number.strip():
+                if record.l10n_latam_document_number and record.l10n_latam_document_number.strip():
                     try:
-                        current_number = int(record.l10n_do_fiscal_number[3:])
+                        current_number = int(record.l10n_latam_document_number[3:])
                         if current_number >= l10n_max.max:
                             raise UserError(_("No se puede confirmar la factura. El número máximo de comprobantes para este tipo de documento ya ha sido alcanzado. Por favor, renueve las secuencias antes de continuar."))
                     except (ValueError, IndexError):

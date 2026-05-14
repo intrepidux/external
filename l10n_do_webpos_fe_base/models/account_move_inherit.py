@@ -386,7 +386,7 @@ class AccountMove(models.Model):
         res = super(AccountMove, self).action_post()
 
         # Obtener las facturas (self puede ser un recordset de una o varias facturas)
-        invoices = self.env["account.move"].browse(self.ids)
+         = self.env["account.move"].browse(self.ids)
 
         for invoice in invoices:
             if not invoice._is_l10n_do_webpos_allowed_document():

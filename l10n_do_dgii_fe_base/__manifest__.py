@@ -12,15 +12,17 @@
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "17.0.1.0.0",
+    'version': "17.0.1.0.2",
 
 
     # any module necessary for this one to work correctly
-    'depends': ['base','account','l10n_do', 'l10n_latam_base'],
+    'depends': ['base', 'contacts', 'account', 'l10n_do', 'l10n_latam_base'],
 
     # always loaded
    'data': [
         'data/account_dgii_data.xml',
+        'data/res_country_state_data.xml',
+        'data/res.municipality.csv',
         'security/ir.model.access.csv',
         'wizard/dgii_xml_preview_wizard_views.xml',
         'views/account_journal_inherit.xml',
@@ -30,6 +32,7 @@
         'views/fe_credentials.xml',
         'views/fe_dgii_navigation.xml',
         'views/res_company_inherit.xml',
+        'views/res_partner_inherit.xml',
         'views/tipo_pago_dgii.xml', 
         'views/xml_data_logs_menu.xml',
         

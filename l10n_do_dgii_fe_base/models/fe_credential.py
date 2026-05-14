@@ -55,6 +55,12 @@ class ItxFeDgii(models.Model):
     ], string='Modo Cliente DGII', default='test', required=True,
         help='Client mode for DGII integration: Production or Test. Test mode uses mock endpoints or XSD validation.')
 
+    dgii_validate_xsd = fields.Boolean(
+        string='Validar XML con XSD',
+        default=True,
+        help='Si está activado, el XML generado será validado contra el esquema XSD de la DGII.'
+    )
+
     is_test_mode = fields.Boolean(
         string='Es Modo Prueba',
         compute='_compute_is_test_mode',
@@ -89,8 +95,7 @@ class ItxFeDgii(models.Model):
     def get_api_endpoint(self, path):
         self.ensure_one()
         base_url = self.api_base_url.rstrip('/')
-        if self.dgii_client_mode == 'test':
-            return f"{base_url}/dgii/test/v1/{path}"
+        path = path.lstrip('/')
         return f"{base_url}/dgii/v1/{path}"
 
     def get_mode_description(self):

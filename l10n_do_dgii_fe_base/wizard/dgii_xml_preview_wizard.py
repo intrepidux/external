@@ -8,6 +8,7 @@ Shows validation results and errors from XSD validation.
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+import base64
 import json
 import requests
 import logging
@@ -80,61 +81,66 @@ class DGIIXmlPreviewWizard(models.TransientModel):
     
     def action_preview_xml(self):
         """
-        Generate and preview XML by calling the test API endpoint.
-        This is called when opening the wizard.
+        Genera XML vía el mismo endpoint unificado que el flujo principal (JSON-RPC).
         """
         self.ensure_one()
         
         if not self.invoice_id:
             raise UserError(_('No se ha seleccionado una factura.'))
         
-        # Get invoice data
-        xml_data_record = self.env['itx.xml.data.dgii'].search([
-            ('account_move_id', '=', self.invoice_id.id)
-        ], limit=1)
-        
-        if not xml_data_record:
-            # Create a temporary record for preview
-            xml_data_record = self.env['itx.xml.data.dgii'].create({
-                'name': f'PREVIEW-{self.invoice_id.name}',
-                'account_move_id': self.invoice_id.id,
-                'company_id': self.invoice_id.company_id.id,
-                'status': 'pending',
-            })
-        
+        invoice = self.invoice_id
         try:
-            # Prepare invoice data
-            invoice_data = xml_data_record._prepare_invoice_data_payload()
-            type_document = xml_data_record.doc_type_E(xml_data_record.name)
+            invoice_data = invoice._prepare_invoice_data_for_api(invoice)
+            type_document = invoice.doc_type_E(invoice)
             
-            # Call test API endpoint
-            api_base_url = self._get_api_base_url()
-            api_url = f'{api_base_url}/dgii/test/v1/preview'
+            api_base_url = self._get_api_base_url().rstrip('/')
+            api_url = f'{api_base_url}/dgii/v1/generate_xml'
             
             payload = {
-                'invoice_data': invoice_data,
-                'type_document': type_document,
-                'validate_xsd': True
+                'jsonrpc': '2.0',
+                'method': 'call',
+                'params': {
+                    'invoice_data': invoice_data,
+                    'type_document': type_document,
+                },
+                'id': 1,
             }
             
-            response = requests.post(api_url, json=payload, timeout=30)
+            response = requests.post(
+                api_url,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=30,
+            )
             response.raise_for_status()
-            result = response.json()
+            body = response.json()
             
-            # Update wizard fields
-            self.xml_content = result.get('xml_content', '')
-            self.xml_valid = result.get('xml_valid', False)
-            self.environment = result.get('environment', 'test')
+            if body.get('error'):
+                err = body['error']
+                msg = err.get('data', {}).get('message') or err.get('message') or str(err)
+                raise UserError(_('Error API: %s') % msg)
             
-            errors = result.get('validation_errors', [])
+            result = body.get('result') or {}
+            self.xml_content = result.get('xml_content') or ''
+            ok = bool(result.get('success')) and bool(self.xml_content)
+            self.xml_valid = ok
+            
+            cre = invoice.company_id.fe_dgii_id.filtered(lambda p: p.active)[:1]
+            self.environment = cre.dgii_client_mode if cre else 'dgii/v1'
+            
+            errors = []
+            if result.get('error'):
+                errors.append(result['error'])
+            if not ok and not errors:
+                errors.append(_('Sin XML en la respuesta'))
+            
             self.validation_errors_count = len(errors)
-            
             if errors:
                 self.validation_errors = json.dumps(errors, indent=2, ensure_ascii=False)
-                self.status_message = _('XML inválido: %d errores encontrados') % len(errors)
+                self.status_message = _('Error: %s') % errors[0]
             else:
                 self.validation_errors = ''
-                self.status_message = _('XML válido y listo para enviar')
+                self.status_message = _('XML generado correctamente')
             
             return {
                 'type': 'ir.actions.act_window',

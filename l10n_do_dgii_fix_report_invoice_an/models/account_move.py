@@ -67,7 +67,7 @@ class AccountMove(models.Model):
                 )
 
     def _post(self, soft=True):
-        """Override to defer sequence consumption for DGII ECF invoices (same pattern as WebPOS fix)."""
+        """Posponer consumo de secuencia fiscal en facturas e-CF con diario DGII hasta el flujo XML."""
         res = super()._post(soft)
 
         for inv in self:

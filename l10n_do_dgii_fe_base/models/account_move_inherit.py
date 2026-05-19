@@ -4,13 +4,16 @@ import io
 import os
 import requests
 import json
-from urllib.parse import quote
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 from odoo.tools.float_utils import float_round
 
 import logging
 _logger = logging.getLogger(__name__)
+
+# Activar en Ajustes > Técnico > Parámetros del sistema: l10n_do_dgii_fe_base.debug_report_qr = true
+# para loguear también cuando el sello existe (vista previa truncada).
+ICP_DEBUG_REPORT_QR = 'l10n_do_dgii_fe_base.debug_report_qr'
 
 import datetime
 
@@ -55,16 +58,18 @@ class AccountMove(models.Model):
     itx_dgii_dgi_err_msg = fields.Text(related='itx_xml_data_id.dgi_err_msg', string='DGII Error Message', store=True)
     # itx_dgii_json_response = fields.Text(related='itx_xml_data_id.json_response', string='Json Response DGII')  # Descomentar si es necesario
 
-    # Campos para facturación electrónica DGII
-    l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
-    l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
+    
 
     # Campo para sello electrónico QR DGII (related para consistencia)
     itx_dgii_electronic_stamp = fields.Char(
         related='itx_xml_data_id.qr_code',
         string="DGII Electronic Stamp",
         store=True,
-        help="Sello electrónico QR obtenido del API DGII"
+        help=(
+            "URL/cadena para el QR en PDF. **Fuente canónica:** respuesta del API (campo qr_code / "
+            "electronic_stamp / etc.); se guarda en itx.xml.data.dgii. Fallback opcional en Odoo solo "
+            "para RFCE (ConsultaTimbreFC) si el parámetro l10n_do_dgii_fe_base.qr_local_fallback está activo."
+        ),
     )
 
 
@@ -72,10 +77,80 @@ class AccountMove(models.Model):
         compute="_compute_qr_encoded"
     )
 
-    @api.depends('itx_dgii_electronic_stamp')
-    def _compute_qr_encoded(self):
+    # Campos para facturación electrónica DGII, mover cerca de itx_dgii_electronic_stamp_encoded    
+    l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
+    l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
+    
+
+    # Reporte / layout: valor QR desde sello DGII (`itx_dgii_electronic_stamp`).
+    l10n_do_dgii_report_has_qr = fields.Boolean(
+        compute='_compute_l10n_do_dgii_report_qr',
+        string='Mostrar QR DGII en reporte',
+    )
+    l10n_do_dgii_report_qr_src = fields.Char(
+        compute='_compute_l10n_do_dgii_report_qr',
+        string='Valor para parámetro value del QR (report/barcode)',
+    )
+
+    @api.depends('itx_xml_data_id', 'itx_xml_data_id.qr_code')
+    def _compute_l10n_do_dgii_report_qr(self):
         for rec in self:
-            rec.itx_dgii_electronic_stamp_encoded = quote(rec.itx_dgii_electronic_stamp or '')
+            # qr_code ya se guarda con url_quote_plus (cf. _apply / _build_fc); no aplicar quote otra vez.
+            val = (rec.itx_xml_data_id.qr_code or '').strip() if rec.itx_xml_data_id else ''
+            rec.l10n_do_dgii_report_has_qr = bool(val)
+            rec.l10n_do_dgii_report_qr_src = val
+
+    @api.depends(
+        'itx_xml_data_id',
+        'itx_xml_data_id.qr_code',
+        'is_ecf_invoice',
+        'journal_id.is_dgii',
+    )
+    def _compute_qr_encoded(self):
+        _icp = self.env['ir.config_parameter'].sudo().get_param(ICP_DEBUG_REPORT_QR, 'False')
+        debug_qr = str(_icp if _icp is not None else 'False').lower() in (
+            '1',
+            'true',
+            'yes',
+            'on',
+        )
+        for rec in self:
+            # Alias para el endpoint barcode: un solo nivel de codificación.
+            val = (
+                (rec.itx_xml_data_id.qr_code or '').strip()
+                if rec.itx_xml_data_id
+                else ''
+            )
+            rec.itx_dgii_electronic_stamp_encoded = val
+            j_dgii = getattr(rec.journal_id, 'is_dgii', False)
+            if not (rec.is_ecf_invoice and j_dgii):
+                continue
+            if not val:
+                xml = rec.itx_xml_data_id
+                _logger.info(
+                    '[DGII][report_qr] sin sello usable en reporte | move_id=%s name=%s state=%s '
+                    'is_ecf_invoice=%s journal_is_dgii=%s itx_xml_data_id=%s raw_qr_len=%s '
+                    'latam_doc=%s ref=%s sec_code_len=%s',
+                    rec.id,
+                    rec.name,
+                    rec.state,
+                    rec.is_ecf_invoice,
+                    j_dgii,
+                    xml.id if xml else None,
+                    len((xml.qr_code or '').strip()) if xml else 0,
+                    rec.l10n_latam_document_type_id.display_name
+                    if rec.l10n_latam_document_type_id
+                    else None,
+                    rec.ref,
+                    len((rec.l10n_do_ecf_security_code or '').strip()),
+                )
+            elif debug_qr:
+                _logger.info(
+                    '[DGII][report_qr] sello presente | move_id=%s stamp_len=%s head=%s',
+                    rec.id,
+                    len(val),
+                    (val[:120] + '...') if len(val) > 120 else val,
+                )
 
 
 
@@ -340,6 +415,24 @@ class AccountMove(models.Model):
         if flujo == "compras":
             return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
         return False
+
+    def _dgii_e32_is_rfce_simplified(self):
+        """
+        E32 consumo bajo umbral: XML ``RFCE`` + endpoint RecepcionFC.
+        Misma regla que ``itx_dgii_api`` ``XmlInterface._determine_is_rfce`` (250k DOP).
+        """
+        self.ensure_one()
+        amount_total = float(self.amount_total or 0.0)
+        cur = (self.currency_id.name or '').strip().upper()
+        try:
+            inv_rate = float(self._get_fiscal_rate() or 0.0)
+        except (TypeError, ValueError):
+            inv_rate = 0.0
+        if cur and cur != 'DOP' and inv_rate > 0:
+            amount_dop = amount_total * inv_rate
+        else:
+            amount_dop = amount_total
+        return amount_dop < 250000.0
 
     def action_post(self):
         # Primero, ejecutar el método original para crear el asiento contable.
@@ -736,7 +829,7 @@ class AccountMove(models.Model):
                 'inverse_rate': invoice._get_fiscal_rate()
             }
 
-            # Datos de compañía para API (sin campos legacy tipo WebPOS: companyLicCod, branchCod, posCod)
+            # Datos de compañía para API (sin campos legacy opcionales: companyLicCod, branchCod, posCod)
             c_partner = invoice.company_id.partner_id
             company_data = {
                 'id': invoice.company_id.id,
@@ -772,17 +865,18 @@ class AccountMove(models.Model):
             for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
                 line_taxes = []
                 for tax in line.tax_ids:
+                    tg_name = (tax.tax_group_id.name or '') if tax.tax_group_id else ''
                     tax_data = {
                         'name': tax.name or '',
                         'amount': tax.amount or 0.0,
                         'price_include': tax.price_include or False,
-                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
+                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False,
+                        'tax_group_name': tg_name,
                     }
-                    tg_name = tax.tax_group_id.name if tax.tax_group_id else ''
                     tipo_dgii = getattr(tax, 'tipo_impuesto_dgii', None)
-                    if tipo_dgii not in (None, False):
+                    if tipo_dgii not in (None, False, ''):
                         tax_data['tipo_impuesto_dgii'] = tipo_dgii
-                        if tg_name == 'ITBIS':
+                        if 'ITBIS' in tg_name.upper():
                             tax_data['tipo_impuesto_dgii_itbis'] = tipo_dgii
                     line_taxes.append(tax_data)
 
@@ -892,6 +986,8 @@ class AccountMove(models.Model):
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
                 'l10n_latam_document_number': invoice.l10n_latam_document_number or '',
                 'l10n_do_ecf_security_code': (invoice.l10n_do_ecf_security_code or '').strip() or None,
+                # Siempre 0: e-CF en base gravable + ITBIS por separado (no precio con ITBIS incluido).
+                'indicador_monto_gravado': 0,
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
@@ -930,7 +1026,7 @@ class AccountMove(models.Model):
             payments_clean = clean_dates(payments_list)
             tax_summary = invoice._prepare_tax_summary_for_dgii_api(invoice)
             tax_summary = clean_dates(tax_summary)
-            _logger.error("API DATA: %s", json.dumps(record_data_clean, indent=2))
+            _logger.error("API DATA: %s", json.dumps(record_data_clean, indent=2, default=str))
             return {
                 'record': record_data_clean,
                 'lines': lines_data_clean,
@@ -971,7 +1067,7 @@ class AccountMove(models.Model):
             
             # Log the prepared invoice data for debugging
             _logger.info("Prepared Invoice Data:")
-            _logger.info(json.dumps(invoice_data, indent=2))
+            _logger.info(json.dumps(invoice_data, indent=2, default=str))
             
             # Validate invoice data before API call
             if not invoice_data or not invoice_data.get('record'):
@@ -985,7 +1081,7 @@ class AccountMove(models.Model):
             }
             
             _logger.info("Calling DGII API with type_document: %s", type_document)
-            _logger.info("API Request Data: %s", json.dumps(api_data, indent=2))
+            _logger.info("API Request Data: %s", json.dumps(api_data, indent=2, default=str))
             
             response = self._call_dgii_api('/dgii/v1/generate_xml', api_data)
             
@@ -1011,7 +1107,7 @@ class AccountMove(models.Model):
             # Additional validation of XML content
             if not xml_content:
                 _logger.error("No XML content generated for invoice %s", invoice.id)
-                _logger.error("Full API Response: %s", json.dumps(response, indent=2))
+                _logger.error("Full API Response: %s", json.dumps(response, indent=2, default=str))
                 raise UserError(_('No XML data was generated for the invoice. Please check the invoice details and API configuration.'))
             
             _logger.info("XML Generation Successful. XML Name: %s", xml_name)

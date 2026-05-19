@@ -1,6 +1,6 @@
 {
     'name': 'L10n Do dgii fix report invoice AN',
-    'version': '1.1',
+    'version': '1.3',
     'depends': [
         'l10n_do_accounting',
         'l10n_do_dgii_fe_base',

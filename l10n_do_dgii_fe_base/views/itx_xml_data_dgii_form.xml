@@ -13,7 +13,9 @@
                             <field name="account_move_id"/>
                             <field name="status"/>
                             <field name="dgi_status"/>
-                            <field name="doc_type"/>
+                            <field name="track_id"/>
+                            <field name="dgii_auth_number"/>
+                            <field name="authorized"/>
                         </group>
                         <notebook>
                             <page string="XML (borrador / enviado)">

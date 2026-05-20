@@ -249,17 +249,32 @@ class AccountMove(models.Model):
 
     def _get_dgii_ecf_modification_code(self, invoice):
         """
-        Calculate automatically the e-CF modification code for DGII API.
+        Código DGII ``CodigoModificacion`` (InformacionReferencia) para NC/ND.
 
-        DGII API only accepts codes 1 and 3:
-        - "1" = Total Cancellation (when credit note amount == original invoice amount)
-        - "3" = Amount correction (when credit note amount < original invoice amount)
+        Nota de **crédito** (``out_refund``): misma heurística habitual —
+        total NC ≈ total factura origen → ``1`` (anula el NCF modificado);
+        NC menor → ``3`` (corrección de montos parcial).
 
-        This method works independently of any localization field.
+        Nota de **débito** (``out_debit``): mora, intereses, cargos adicionales referidos
+        a una factura — **no** es anulación del comprobante origen. DGII encaja en
+        ``3`` (corrige montos). Comparar ND vs total origen y devolver ``1`` sería
+        incorrecto en la práctica (coincidencia numérica ≠ anulación).
+
+        Si existe ``l10n_do_ecf_modification_code`` en el move (otros módulos), se respeta.
         """
         # Only apply to credit notes (out_refund) and debit notes (out_debit)
         if invoice.move_type not in ('out_refund', 'out_debit'):
             return ''
+
+        manual = getattr(invoice, 'l10n_do_ecf_modification_code', None)
+        if manual not in (None, False, ''):
+            sm = str(manual).strip()
+            try:
+                n = int(sm)
+            except (ValueError, TypeError):
+                n = None
+            if n is not None and 1 <= n <= 5:
+                return str(n)
 
         # Get the original invoice
         original_invoice = None
@@ -269,22 +284,29 @@ class AccountMove(models.Model):
             original_invoice = invoice.debit_origin_id
 
         if not original_invoice:
+            origin_ncf = (getattr(invoice, 'l10n_do_origin_ncf', None) or '').strip()
+            if origin_ncf:
+                original_invoice = invoice.env['account.move'].sudo().search(
+                    [('l10n_latam_document_number', '=', origin_ncf)], limit=1
+                )
+
+        if not original_invoice:
             _logger.warning(f"Cannot determine modification code: no original invoice found for {invoice.name}")
+            if invoice.move_type == 'out_debit' and (getattr(invoice, 'l10n_do_origin_ncf', None) or '').strip():
+                return '3'
             return ''
 
-        # Compare amounts using absolute values (to handle negative amounts in refunds)
-        current_amount = abs(invoice.amount_total)
-        original_amount = abs(original_invoice.amount_total)
-
-        # Use a small epsilon for float comparison
         epsilon = 0.01
 
-        if abs(current_amount - original_amount) < epsilon:
-            # Total cancellation - amounts are equal
-            return '1'
-        else:
-            # Amount correction - credit note is for less than original
+        if invoice.move_type == 'out_debit':
             return '3'
+
+        # out_refund: compare amounts using absolute values (negative amounts en refunds)
+        current_amount = abs(invoice.amount_total)
+        original_amount = abs(original_invoice.amount_total)
+        if abs(current_amount - original_amount) < epsilon:
+            return '1'
+        return '3'
 
     def _validate_dgii_invoice(self):
         """Valida todos los requisitos de DGII antes de confirmar la factura.
@@ -810,11 +832,19 @@ class AccountMove(models.Model):
             partner_data = {
                 'name': invoice.partner_id.name or '',
                 'vat': ''.join(filter(str.isdigit, invoice.partner_id.vat or '')),
+                'vat_full': (invoice.partner_id.vat or '').strip(),
                 'street': invoice.partner_id.street or '',
                 'state_name': invoice.partner_id.state_id.name if invoice.partner_id.state_id else '',
                 'country_name': invoice.partner_id.country_id.name if invoice.partner_id.country_id else '',
-                'email': invoice.partner_id.email or ''
+                'country_code': invoice.partner_id.country_id.code
+                if invoice.partner_id.country_id
+                else '',
+                'email': invoice.partner_id.email or '',
             }
+            if hasattr(invoice.partner_id, 'l10n_do_dgii_tax_payer_type'):
+                partner_data['l10n_do_dgii_tax_payer_type'] = (
+                    invoice.partner_id.l10n_do_dgii_tax_payer_type or ''
+                )
             p_geo = invoice._dgii_geo_codes_for_partner(invoice.partner_id)
             if p_geo.get('dgii_municipio_code'):
                 partner_data['dgii_municipio_code'] = p_geo['dgii_municipio_code']

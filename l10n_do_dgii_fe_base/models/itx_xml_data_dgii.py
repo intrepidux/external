@@ -198,8 +198,12 @@ class ItxXMLDataDGII(models.Model):
     status = fields.Selection([
         ('pending', 'Por enviar'),
         ('sent', 'Enviado'),
-        ('error', 'Error'),
-        ('procesed', 'Procesado')
+        (
+            'error_no_enviado',
+            'No aceptado por DGII / validación (reintentar)',
+        ),
+        ('error', 'Error técnico (API, red, firma, etc.)'),
+        ('procesed', 'Procesado'),
     ], default='pending', string='Status')
     state = fields.Selection([('to_send', 'To Send'), ('sent', 'Sent'), ('to_cancel', 'To Cancel'), ('cancelled', 'Cancelled')])
     error = fields.Text(string='Error Message')
@@ -605,7 +609,7 @@ class ItxXMLDataDGII(models.Model):
             self.dgii_auth_number = sna
 
         if dgii_class == 'rejected':
-            self.status = 'error'
+            self.status = 'error_no_enviado'
             self.dgi_status = dgii_label or 'Rechazado'
             self.authorized = False
         elif dgii_class == 'approved':
@@ -618,7 +622,7 @@ class ItxXMLDataDGII(models.Model):
             self.authorized = False
         elif dgii_class == 'pending':
             self.dgi_status = dgii_label or _('Pendiente de verificación DGII')
-            if self.status not in ('error', 'procesed'):
+            if self.status not in ('error', 'error_no_enviado', 'procesed'):
                 self.status = 'sent'
             self.authorized = False
         elif dgii_label:
@@ -688,11 +692,28 @@ class ItxXMLDataDGII(models.Model):
 
     def _is_recoverable_dgii_submission_rejection(self, response_data, final_msg):
         """
-        Rechazo explícito de DGII (negocio), p.ej. ``{"codigo":2,"estado":"Rechazado",...}``.
-        No elevamos UserError: se deja el estado en el registro itx.xml.data.dgii (como XSD).
+        Respuesta negativa tras intento de recepción en DGII (u otro error HTTP con cuerpo DGII).
+
+        Incluye: estado Rechazado, código 2, mensajes de validación XML emitidos **por DGII**
+        (p.ej. orden de nodos / «invalid child element»), y errores 4xx típicos cuando ya hay
+        XML firmado en la respuesta.
+
+        No elevar UserError: persistir en ``itx.xml.data.dgii`` (``dgi_status`` / ``dgi_err_msg``).
+
+        No confundir con fallos previos al envío (firma, XML vacío, JSON mal formado): esos siguen
+        como UserError si no entran aquí.
         """
         if not isinstance(response_data, dict):
             return False
+        blob_msg = ' '.join(
+            str(x or '')
+            for x in (
+                final_msg,
+                response_data.get('error'),
+                response_data.get('message'),
+            )
+        ).lower()
+
         rec = response_data.get('dgii_recepcion')
         if isinstance(rec, dict):
             est = str(rec.get('estado') or rec.get('Estado') or '').replace(' ', '').lower()
@@ -704,6 +725,17 @@ class ItxXMLDataDGII(models.Model):
                     return True
             except (TypeError, ValueError):
                 if str(cod) == '2':
+                    return True
+            # DGII a veces solo devuelve error/mensaje textual (sin estado estándar)
+            for key in ('error', 'mensaje', 'Mensaje'):
+                frag = str(rec.get(key) or '').lower()
+                if not frag:
+                    continue
+                if 'estructura del archivo xml' in frag:
+                    return True
+                if 'invalid child element' in frag:
+                    return True
+                if 'list of possible elements expected' in frag:
                     return True
         for key in ('dgii_estado', 'dgii_status'):
             val = response_data.get(key)
@@ -718,6 +750,29 @@ class ItxXMLDataDGII(models.Model):
                 return True
             if 'rechazado' in final_msg.lower() and 'dgii rejected' in final_msg.lower():
                 return True
+        # Texto típico cuando la API encapsula el JSON de DGII en ``error`` (HTTP≠200)
+        if 'dgii rejected the submission' in blob_msg:
+            return True
+        if 'estructura del archivo xml' in blob_msg:
+            return True
+        if 'invalid child element' in blob_msg:
+            return True
+        if 'list of possible elements expected' in blob_msg:
+            return True
+
+        st = str(response_data.get('status') or '')
+        if st == 'REJECTED':
+            return True
+        # p.ej. ERROR_400: hubo intento de recepción y cuerpo explicativo de DGII/gateway
+        if st.startswith('ERROR_'):
+            tail = st.split('_', 1)[-1]
+            try:
+                code = int(tail)
+            except ValueError:
+                code = None
+            if code is not None and 400 <= code < 500 and response_data.get('signed_xml'):
+                return True
+
         return False
 
     def save_and_send_xml(self):
@@ -848,7 +903,7 @@ class ItxXMLDataDGII(models.Model):
 
                 # Soft-handle XSD/validation failures: record in the itx.xml.data.dgii record
                 if is_xsd_error:
-                    self.status = 'error'
+                    self.status = 'error_no_enviado'
                     # Mirror DGII rejection semantics in UI
                     self.dgi_status = 'RECHAZADO'
                     self.dgi_err_msg = final_user_message or 'XSD validation failed' # Ensure it's not empty
@@ -865,7 +920,7 @@ class ItxXMLDataDGII(models.Model):
 
                 # Rechazo explícito DGII (mismo tratamiento que XSD): UI en itx.xml.data.dgii / factura
                 if recoverable_rejection:
-                    self.status = 'error'
+                    self.status = 'error_no_enviado'
                     if not self.dgi_status:
                         self.dgi_status = 'RECHAZADO'
                     # Always update dgi_err_msg with the more specific message if available

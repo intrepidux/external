@@ -909,19 +909,16 @@ class ItxXMLDataDGII(models.Model):
         if not cre:
             raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
 
-        # Validate certificate credentials are configured
-        if not cre.certificate_file:
-            raise UserError(_('No hay certificado digital configurado. Por favor configure el certificado en la configuración de DGII.'))
-        if not cre.certificate_password:
-            raise UserError(_('No hay contraseña de certificado configurada. Por favor configure la contraseña en la configuración de DGII.'))
+        if cre._use_legacy_cert_in_request():
+            if not cre.certificate_file or not cre.certificate_password:
+                raise UserError(
+                    _('Configure certificado y contraseña, o sincronice con la API.')
+                )
+        else:
+            cre._require_synced_for_prod()
+
         if not cre.rnc:
-            raise UserError(_('No hay RNC configurado. Por favor configure el RNC en la configuración de DGII.'))
-
-        # Get the API URL using the new get_api_endpoint method
-        api_url = cre.get_api_endpoint('submit_invoice')
-
-        # Prepare certificate data (base64 encoded)
-        certificate_b64 = cre.certificate_file.decode('utf-8') if isinstance(cre.certificate_file, bytes) else cre.certificate_file
+            raise UserError(_('No hay RNC configurado en la compañía.'))
 
         # Tipo e-CF desde la factura (name puede ser TEMP-{id})
         invoice = self.account_move_id
@@ -942,18 +939,13 @@ class ItxXMLDataDGII(models.Model):
         # API: mode=test → _submit_mock (XSD + tracking TEST-*); mode=prod → DGII real
         api_mode = 'test' if cre.dgii_client_mode == 'test' else 'prod'
 
-        # Prepare payload for new DGII API
-        payload = {
+        payload = cre._api_params_with_auth({
             'invoice_data': invoice_data,
             'type_document': type_document,
             'document_flow': document_flow,
-            'certificate_b64': certificate_b64,
-            'certificate_password': cre.certificate_password,
-            'rnc': cre.rnc,
-            'environment': cre.dgii_environment or 'TesteCF',
             'mode': api_mode,
-            'validate_xsd': cre.dgii_validate_xsd, # Nuevo campo para controlar validación XSD
-        }
+            'validate_xsd': cre.dgii_validate_xsd,
+        })
         _logger.info(
             'DGII submit_invoice: api_mode=%s (itx.fe.dgii dgii_client_mode=%s)',
             api_mode,
@@ -961,7 +953,12 @@ class ItxXMLDataDGII(models.Model):
         )
 
         try:
-            response_data = _post_dgii_json_route(api_url, payload, timeout=30)
+            response_data = cre._api_jsonrpc(
+                'submit_invoice',
+                payload,
+                use_api_key=not cre._use_legacy_cert_in_request(),
+                timeout=30,
+            )
 
             # Store the full response
             self.json_response_sent = json.dumps(response_data)
@@ -1112,31 +1109,23 @@ class ItxXMLDataDGII(models.Model):
         if not cre:
             raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
 
-        # Validate certificate credentials are configured
-        if not cre.certificate_file:
-            raise UserError(_('No hay certificado digital configurado. Por favor configure el certificado en la configuración de DGII.'))
-        if not cre.certificate_password:
-            raise UserError(_('No hay contraseña de certificado configurada. Por favor configure la contraseña en la configuración de DGII.'))
-        if not cre.rnc:
-            raise UserError(_('No hay RNC configurado. Por favor configure el RNC en la configuración de DGII.'))
+        if cre._use_legacy_cert_in_request():
+            if not cre.certificate_file or not cre.certificate_password:
+                raise UserError(
+                    _('Configure certificado o sincronice con la API.')
+                )
+        else:
+            cre._require_synced_for_prod()
 
-        # Get the API URL using the new get_api_endpoint method
-        api_url = cre.get_api_endpoint('check_status')
-
-        # Prepare certificate data (base64 encoded)
-        certificate_b64 = cre.certificate_file.decode('utf-8') if isinstance(cre.certificate_file, bytes) else cre.certificate_file
-
-        # Prepare payload for new DGII API status check
-        payload = {
-            'track_id': self.track_id,
-            'certificate_b64': certificate_b64,
-            'certificate_password': cre.certificate_password,
-            'rnc': cre.rnc,
-            'environment': cre.dgii_environment or 'TesteCF',
-        }
+        payload = cre._api_params_with_auth({'track_id': self.track_id})
 
         try:
-            response_data = _post_dgii_json_route(api_url, payload, timeout=30)
+            response_data = cre._api_jsonrpc(
+                'check_status',
+                payload,
+                use_api_key=not cre._use_legacy_cert_in_request(),
+                timeout=30,
+            )
 
             # Store the full response
             self.json_response = json.dumps(response_data)

@@ -437,37 +437,45 @@ class AccountMove(models.Model):
         return self.env['ir.config_parameter'].sudo().get_param('dgii_api.base_url', 'http://localhost:8069')
 
     def _call_dgii_api(self, endpoint, data):
-        """Make a JSON-RPC call to the dgii_api endpoints"""
+        """Make a JSON-RPC call to the dgii_api endpoints."""
+        cre = self.company_id.fe_dgii_id.filtered(lambda p: p.active)[:1]
+        path = endpoint.replace('/dgii/v1/', '').lstrip('/')
+        if not path:
+            path = endpoint.lstrip('/')
         try:
+            if cre:
+                params = cre._api_params_with_auth(data)
+                result = cre._api_jsonrpc(
+                    path,
+                    params,
+                    use_api_key=not cre._use_legacy_cert_in_request(),
+                    timeout=30,
+                )
+                return {'jsonrpc': '2.0', 'id': 1, 'result': result}
             base_url = self._get_api_base_url()
-            url = f"{base_url}{endpoint}"
-            
-            # Prepare JSON-RPC format
+            url = f"{base_url.rstrip('/')}{endpoint}"
             jsonrpc_data = {
-                "jsonrpc": "2.0",
-                "method": "call",
-                "params": data,
-                "id": 1
+                'jsonrpc': '2.0',
+                'method': 'call',
+                'params': data,
+                'id': 1,
             }
-            
-            headers = {
-                'Content-Type': 'application/json',
-            }
-            
-            _logger.info(f"Making API call to: {url}")
-            _logger.info(f"JSON-RPC Data: {json.dumps(jsonrpc_data, indent=2)}")
-            
-            response = requests.post(url, json=jsonrpc_data, headers=headers, timeout=30)
+            response = requests.post(
+                url,
+                json=jsonrpc_data,
+                headers={'Content-Type': 'application/json'},
+                timeout=30,
+            )
             response.raise_for_status()
-            
             return response.json()
-            
+        except UserError:
+            raise
         except requests.exceptions.RequestException as e:
-            _logger.error(f"API call to {endpoint} failed: {str(e)}")
-            raise UserError(_('Error calling DGII API: %s') % str(e))
+            _logger.error('API call to %s failed: %s', endpoint, str(e))
+            raise UserError(_('Error calling DGII API: %s') % e) from e
         except Exception as e:
-            _logger.error(f"Unexpected error calling API {endpoint}: {str(e)}")
-            raise UserError(_('Unexpected error calling DGII API: %s') % str(e))
+            _logger.error('Unexpected error calling API %s: %s', endpoint, str(e))
+            raise UserError(_('Unexpected error calling DGII API: %s') % e) from e
 
     def copy(self, default=None):
         # Asegúrate de que 'default' sea un diccionario para evitar errores

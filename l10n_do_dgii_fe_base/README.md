@@ -29,9 +29,11 @@ cp -r l10n_do_dgii_fe_base /path/to/odoo/addons/
 
 ## Configuración UI
 
-### 1. Credenciales DGII
+### 1. Maestro FE DGII (Credenciales)
 
-Ir a: **Facturación → Configuración → DGII → Credenciales**
+Ir a: **DGII → Credentials** (Maestro de facturación electrónica DGII / `itx.fe.dgii`)
+
+Sync con API: ver [CONFIGURACION_SYNC.md](../../fe_base_api/itx_dgii_api/docs/CONFIGURACION_SYNC.md).
 
 #### Campos requeridos:
 - **Nombre**: Identificador del ambiente
@@ -178,12 +180,28 @@ El módulo envía los siguientes datos a la API:
   },
   "type_document": "31",
   "document_flow": "ECF",
-  "certificate_b64": "base64_encoded_certificate...",
-  "certificate_password": "cert_password",
-  "rnc": "102345678",
-  "environment": "TesteCF"
+  "client_id": 1,
+  "mode": "prod"
 }
 ```
+
+Cabecera: `X-API-Key: <clave>` (tras sincronizar en Maestro FE DGII).
+
+## Sincronización con API (17.0.1.0.13+)
+
+Guía paso a paso (servidor API + este módulo, checklist, CerteCF, errores frecuentes):
+
+**[CONFIGURACION_SYNC.md](../../fe_base_api/itx_dgii_api/docs/CONFIGURACION_SYNC.md)** (en el addon `itx_dgii_api`).
+
+Resumen:
+
+1. En el servidor API: `itx_dgii_api.provisioning_key` = misma clave que en **DGII → Credentials** → **Clave aprovisionamiento API**.
+2. Cargar P12 + contraseña en Maestro FE DGII.
+3. **Sincronizar con API** → crea/actualiza `dgii.api.client` remoto; la **API Key** queda en el registro (el aviso del toast es informativo).
+4. Producción: facturas usan `client_id` + API key (no `certificate_b64` por request).
+5. Modo test sin sync: `cert_storage_mode = local_legacy` mantiene compatibilidad anterior.
+
+URLs CerteCF (receptor) se muestran en el formulario (host = `api_base_url` del servidor API).
 
 ## Endpoints Consumidos
 
@@ -205,6 +223,9 @@ El módulo cliente consume los siguientes endpoints de la API externa:
 | `POST /dgii/v1/submit_invoice` | Envía factura real a DGII |
 | `POST /dgii/v1/check_status` | Verifica estado con DGII |
 | `POST /dgii/v1/validate_certificate` | Valida certificado digital |
+| `POST /dgii/v1/generate_xml` | Genera XML (preview / factura) |
+| `POST /dgii/v1/clients/register` | Sync inicial (provisioning) |
+| `POST /dgii/v1/clients/update_certificate` | Actualizar cert en API |
 | `POST /dgii/v1/test` | Test de conectividad |
 
 ## Flujo de Estados

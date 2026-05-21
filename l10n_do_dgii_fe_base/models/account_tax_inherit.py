@@ -30,6 +30,29 @@ class AccountTax(models.Model):
 
     itx_tax_verified = fields.Boolean(string='Verificado para DGII', default=False)
 
+    dgii_codigo_tabla_impuesto = fields.Char(
+        string='Código TablaImpuestoAdicional (001–039)',
+        size=3,
+        help=(
+            'Código XSD de impuesto adicional (p. ej. 006 ISC, 001 propina si no usa grupo «Propina»). '
+            'Distinto de tipo_impuesto_dgii (0–6, categoría ITBIS en Odoo).'
+        ),
+    )
+
+    @api.constrains('dgii_codigo_tabla_impuesto')
+    def _check_dgii_codigo_tabla_impuesto(self):
+        for tax in self:
+            cod = (tax.dgii_codigo_tabla_impuesto or '').strip()
+            if not cod:
+                continue
+            if len(cod) == 3 and cod.isdigit():
+                ni = int(cod)
+                if 1 <= ni <= 39:
+                    continue
+            raise ValidationError(
+                _('Código TablaImpuestoAdicional debe ser 001–039 (tres dígitos).')
+            )
+
     @api.constrains('itx_tax_verified', 'tipo_impuesto_dgii', 'tax_group_id')
     def _check_dgii_verified_requires_tipo(self):
         """ISR/retenciones u otros grupos no-ITBIS pueden estar verificados sin ``tipo_impuesto_dgii``."""

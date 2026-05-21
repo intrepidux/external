@@ -1031,6 +1031,9 @@ class AccountMove(models.Model):
                         tax_data['tipo_impuesto_dgii'] = tipo_dgii
                         if 'ITBIS' in tg_name.upper():
                             tax_data['tipo_impuesto_dgii_itbis'] = tipo_dgii
+                    cod_tabla = getattr(tax, 'dgii_codigo_tabla_impuesto', None)
+                    if cod_tabla not in (None, False, ''):
+                        tax_data['dgii_codigo_tabla_impuesto'] = str(cod_tabla).strip()
                     line_taxes.append(tax_data)
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive

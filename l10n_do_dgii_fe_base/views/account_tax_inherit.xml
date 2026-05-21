@@ -12,6 +12,9 @@
                            groups="account.group_account_manager,base.group_system"/>
                     <field name="itx_tax_verified"
                            groups="account.group_account_manager,base.group_system"/>
+                    <field name="dgii_codigo_tabla_impuesto"
+                           placeholder="001"
+                           groups="account.group_account_manager,base.group_system"/>
                 </xpath>
             </field>
         </record>

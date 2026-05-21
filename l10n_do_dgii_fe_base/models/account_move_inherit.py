@@ -6,7 +6,8 @@ import requests
 import json
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
-from odoo.tools.float_utils import float_round
+from odoo.tools.float_utils import float_round, float_is_zero
+from odoo.tools import html2plaintext
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -213,35 +214,58 @@ class AccountMove(models.Model):
             
         return  round(self.currency_id.inverse_rate or 1.0, 4)
 
-    def get_clean_description(self, line):
-        """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
-        
-        Si el usuario modificó manualmente la descripción, la respetamos.
-        Si es la descripción automática de Odoo, usamos el nombre del producto 
-        para evitar códigos de referencia o formatos internos.
+    def _dgii_amount_total_in_dop(self):
         """
-        product = line.product_id
-        line_name = line.name or ''
-        
-        # Solo procesar si la línea es de tipo 'product'
-        if line.display_type != 'product':
-            return '' # No enviar secciones o notas al API
+        ``amount_total`` de la factura expresado en DOP (tasa fiscal / umbral 250k DGII).
+        Misma base que ``_dgii_e32_is_rfce_simplified`` y que ``itx_dgii_api`` para RFCE.
+        """
+        self.ensure_one()
+        amount_total = float(self.amount_total or 0.0)
+        cur = (self.currency_id.name or '').strip().upper()
+        try:
+            inv_rate = float(self._get_fiscal_rate() or 0.0)
+        except (TypeError, ValueError):
+            inv_rate = 0.0
+        if cur and cur != 'DOP' and inv_rate > 0:
+            return amount_total * inv_rate
+        return amount_total
 
-        if product:
-            product_name = product.name or ''
-            # Si el nombre del producto está contenido en la línea, 
-            # es probable que sea la descripción automática (ej: "[REF] Producto")
-            # En ese caso, preferimos el nombre limpio del producto.
-            if product_name in line_name:
-                description = product_name
-            else:
-                # Si el usuario cambió la descripción y ya no coincide con el nombre 
-                # del producto, respetamos su cambio manual.
-                description = line_name
+    @staticmethod
+    def _dgii_plain_invoice_line_label(line):
+        """Campo ``name`` de la línea sin HTML (etiqueta visible)."""
+        raw = line.name or ''
+        return (html2plaintext(raw).strip() if raw else '')
+
+    def get_clean_description(self, line):
+        """Texto para DGII ``NombreItem``.
+
+        En diarios DGII la etiqueta obligatoria al confirmar (``_validate_dgii_invoice``).
+
+        * Sin producto: solo ``line.name`` (texto plano).
+        * Con producto: si la etiqueta contiene el nombre del producto (típico autofill), se
+          usa el nombre del producto; si no, la etiqueta tal cual.
+        """
+        # Solo líneas facturables (``display_type == 'product'``): secciones/notas no tienen NombreItem.
+        if line.display_type != 'product':
+            return ''  # No enviar secciones o notas al API
+
+        product = line.product_id
+        line_name = self._dgii_plain_invoice_line_label(line)
+
+        # Sin producto: sólo etiqueta (obligatoria al confirmar si diario DGII).
+        if not product:
+            description = line_name
+            if len(description) > 80:
+                description = description[:77] + '...'
+            return description
+
+        product_name = (product.name or '').strip()
+        if product_name and line_name and product_name in line_name:
+            description = product_name
         else:
             description = line_name
 
-        # Truncar a 80 caracteres para cumplimiento DGII
+        description = (description or '').strip()
         if len(description) > 80:
             description = description[:77] + '...'
 
@@ -319,20 +343,77 @@ class AccountMove(models.Model):
 
         errors = []
 
-        # 1. Validar RNC/Cédula para facturas >= 250,000
-        if self.amount_total >= 250000:
+        # Ítems facturables solamente: ``line_section`` / ``line_note`` (secciones y notas)
+        # no son DetallesItems e-CF; no validar ni enviar como líneas DGII.
+        product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
+
+        # Etiqueta (line.name) obligatoria: XSD NombreItem AlfNum80Type minLength 1; no usar placeholder.
+        for line in product_lines:
+            if not self._dgii_plain_invoice_line_label(line):
+                hint = (
+                    line.product_id.display_name
+                    if line.product_id
+                    else _('línea sin producto')
+                )
+                errors.append(
+                    _(
+                        '- La etiqueta / descripción de la línea no puede estar vacía '
+                        '(producto: %s). Complétela en la columna de etiqueta antes de confirmar.'
+                    )
+                    % hint
+                )
+
+        # 1. Validar RNC/Cédula para facturas >= RD$250,000 (umbral en DOP, no en moneda extranjera)
+        amount_dop = self._dgii_amount_total_in_dop()
+        if amount_dop >= 250000:
             if not self.partner_id.vat or not self.partner_id.vat.strip():
                 errors.append(
                     _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
                 )
 
         # 2. Validar que cada línea tenga al menos un impuesto
-        for line in self.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
+        for line in product_lines:
             if not line.tax_ids:
                 errors.append(
                     _("- Línea '%s' no tiene impuestos configurados. "
-                      "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento).") 
-                    % line.name[:50]
+                      "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento).")
+                    % (self._dgii_plain_invoice_line_label(line) or line.product_id.display_name or '')[:50]
+                )
+
+        # 2b. Monto 0: e-CF coherente con DGII (IndicadorFacturacion 0) → impuesto "No facturable" (tipo_impuesto_dgii = 4)
+        currency = self.currency_id
+        rounding = currency.rounding if currency else 0.01
+        gravado_tipos_dgii = {'1', '2', '3', '5'}
+        for line in product_lines:
+            if not line.tax_ids:
+                continue
+            if not float_is_zero(line.price_subtotal, precision_rounding=rounding):
+                continue
+            label = (
+                self._dgii_plain_invoice_line_label(line)
+                or (line.product_id.display_name if line.product_id else '')
+                or _('línea')
+            )[:80]
+            bad_grav = line.tax_ids.filtered(lambda t: t.tipo_impuesto_dgii in gravado_tipos_dgii)
+            if bad_grav:
+                errors.append(
+                    _(
+                        '- Línea "%(line)s" tiene monto 0 y lleva impuesto(s) gravados DGII (%(taxes)s). '
+                        'Sustitúyalos por el impuesto con Tipo de Impuesto DGII '
+                        '"No facturable (Hoteles y/o Restaurantes)" (código 4).'
+                    )
+                    % {
+                        'line': label,
+                        'taxes': ', '.join(bad_grav.mapped('name'))[:200],
+                    }
+                )
+            if not line.tax_ids.filtered(lambda t: t.tipo_impuesto_dgii == '4'):
+                errors.append(
+                    _(
+                        '- Línea "%(line)s" tiene monto 0: debe incluir un impuesto con '
+                        'Tipo de Impuesto DGII "No facturable (Hoteles y/o Restaurantes)" (código 4).'
+                    )
+                    % {'line': label}
                 )
 
         # 3. Validar impuestos verificados
@@ -444,17 +525,7 @@ class AccountMove(models.Model):
         Misma regla que ``itx_dgii_api`` ``XmlInterface._determine_is_rfce`` (250k DOP).
         """
         self.ensure_one()
-        amount_total = float(self.amount_total or 0.0)
-        cur = (self.currency_id.name or '').strip().upper()
-        try:
-            inv_rate = float(self._get_fiscal_rate() or 0.0)
-        except (TypeError, ValueError):
-            inv_rate = 0.0
-        if cur and cur != 'DOP' and inv_rate > 0:
-            amount_dop = amount_total * inv_rate
-        else:
-            amount_dop = amount_total
-        return amount_dop < 250000.0
+        return self._dgii_amount_total_in_dop() < 250000.0
 
     def action_post(self):
         # Primero, ejecutar el método original para crear el asiento contable.
@@ -714,6 +785,18 @@ class AccountMove(models.Model):
                 out['dgii_provincia_code'] = str(pc).strip()
         return out
 
+    @api.model
+    def _dgii_effective_line_taxes(self, line):
+        """Impuestos efectivos de la línea (hijos si el maestro es agrupación ``group``)."""
+        Tax = self.env['account.tax']
+        effective = Tax.browse()
+        for tax in line.tax_ids:
+            if tax.amount_type == 'group' and tax.children_tax_ids:
+                effective |= tax.children_tax_ids
+            else:
+                effective |= tax
+        return effective
+
     def _prepare_tax_summary_for_dgii_api(self, invoice=None):
         """Totales impositivos e-CF desde Odoo (``tax_ids.compute_all``), estilo l10n_do_ecf_invoicing.
 
@@ -736,16 +819,22 @@ class AccountMove(models.Model):
             'base_0': 0.0,
             'itbis_0': 0.0,
             'exento': 0.0,
+            'monto_no_facturable': 0.0,
             'total_itbis': 0.0,
             'itbis_retenido': 0.0,
             'isr_retenido': 0.0,
             'impuestos_adicionales': [],
         }
+        # Propina Legal e-CF: XSD ``TipoImpuesto`` 001 si el grupo lleva «Propina»
+        # en el nombre (no hace falta ``tipo_impuesto_dgii`` en el maestro si el grupo coincide).
+        propina_additional = {}
 
         is_refund = inv.move_type in ('out_refund', 'in_refund')
+        # Solo ítems de producto/servicio (no secciones ni notas de línea).
         for line in inv.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
             if not line.tax_ids:
                 continue
+            nf_line = any(getattr(t, 'tipo_impuesto_dgii', None) == '4' for t in line.tax_ids)
             price_unit_disc = line.price_unit * (1.0 - (line.discount or 0.0) / 100.0)
             com_all = line.tax_ids.compute_all(
                 price_unit_disc,
@@ -763,6 +852,8 @@ class AccountMove(models.Model):
                 amt = float(tax.get('amount') or 0.0)
 
                 if not amt and not is_e46:
+                    if nf_line:
+                        continue
                     summary['exento'] += base
                     continue
 
@@ -791,24 +882,53 @@ class AccountMove(models.Model):
                 elif tax_id.amount == 0 and is_e46 and 'ITBIS' in tg_u:
                     summary['base_0'] += base
                     summary['itbis_0'] += amt
+                elif 'PROPINA' in tg_u and float(tax_id.amount or 0) >= 0:
+                    rk = '%.10g' % float_round(float(tax_id.amount or 0.0), precision_digits=6)
+                    if rk not in propina_additional:
+                        propina_additional[rk] = {
+                            'tasa': float(tax_id.amount or 0.0),
+                            'monto': 0.0,
+                        }
+                    propina_additional[rk]['monto'] += float(amt)
+
+            if nf_line:
+                summary['monto_no_facturable'] += float_round(
+                    line.price_subtotal or 0.0,
+                    precision_digits=prec,
+                )
 
         summary['itbis_retenido'] += float(getattr(inv, 'withholded_itbis', 0.0) or 0.0)
         summary['isr_retenido'] += float(getattr(inv, 'income_withholding', 0.0) or 0.0)
 
         summary['total_itbis'] = summary['itbis_18'] + summary['itbis_16'] + summary['itbis_0']
 
+        for rk in sorted(propina_additional.keys(), key=lambda k: propina_additional[k]['tasa']):
+            pdata = propina_additional[rk]
+            rm = float_round(pdata['monto'], precision_digits=prec)
+            if float_is_zero(rm, precision_rounding=prec):
+                continue
+            summary['impuestos_adicionales'].append({
+                'tipo': '001',
+                'tasa': pdata['tasa'],
+                'monto': rm,
+                'otros_impuestos': rm,
+            })
+
         for key in (
             'base_18', 'itbis_18', 'base_16', 'itbis_16', 'base_0', 'itbis_0',
-            'exento', 'total_itbis', 'itbis_retenido', 'isr_retenido',
+            'exento', 'monto_no_facturable', 'total_itbis', 'itbis_retenido', 'isr_retenido',
         ):
             summary[key] = float_round(summary[key], precision_digits=prec)
 
         gravado = summary['base_18'] + summary['base_16'] + summary['base_0']
         untaxed = float_round(inv.amount_untaxed or 0.0, precision_digits=prec)
-        if float_round(gravado + summary['exento'], precision_digits=prec) != untaxed:
+        if float_round(
+            gravado + summary['exento'] + summary['monto_no_facturable'],
+            precision_digits=prec,
+        ) != untaxed:
             _logger.warning(
-                'DGII tax_summary: gravado+exento (%s) != amount_untaxed (%s) en %s',
-                gravado + summary['exento'],
+                'DGII tax_summary: gravado+exento+monto_no_facturable (%s) != amount_untaxed (%s) en %s',
+                gravado + summary['exento'] + summary['monto_no_facturable'],
                 untaxed,
                 inv.display_name,
             )
@@ -890,11 +1010,14 @@ class AccountMove(models.Model):
                     'dgii_client_mode': fe.dgii_client_mode,
                 }]
 
-            # Prepare invoice lines data
+            # Solo ``display_type == 'product'``: secciones y notas no van al JSON/XML e-CF.
+            # Líneas API/DGII: siempre base sin impuesto + impuestos aparte (Odoo ya usa
+            # price_subtotal=total_excluded, price_total=total_included; da igual si el
+            # impuesto es price_include en el maestro).
             lines_data = []
             for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
                 line_taxes = []
-                for tax in line.tax_ids:
+                for tax in self._dgii_effective_line_taxes(line):
                     tg_name = (tax.tax_group_id.name or '') if tax.tax_group_id else ''
                     tax_data = {
                         'name': tax.name or '',
@@ -934,8 +1057,14 @@ class AccountMove(models.Model):
                     'product_code': line.product_id.default_code or '',
                     'product_id': {
                         'name': line.product_id.name or '',
-                        'default_code': line.product_id.default_code or False
-                    }
+                        'default_code': line.product_id.default_code or False,
+                        'detailed_type': line.product_id.detailed_type or False,
+                    },
+                    **(
+                        {'dgii_indicador_facturacion': line.dgii_indicador_facturacion}
+                        if getattr(line, 'dgii_indicador_facturacion', False)
+                        else {}
+                    ),
                 })
 
             # Determine NCF expiration date with robust handling for all invoice types
@@ -1334,6 +1463,23 @@ class AccountMove(models.Model):
 class AccountMoveLine(models.Model):
     _inherit = 'account.move.line'
     _description = 'Herencia para validar impuestos únicos por grupo en líneas de DGII'
+
+    dgii_indicador_facturacion = fields.Selection(
+        selection=[
+            ('0', '0 — No facturable'),
+            ('1', '1 — Gravado (ITBIS 1 — 18%)'),
+            ('2', '2 — Gravado (ITBIS 2 — 16%)'),
+            ('3', '3 — Gravado (ITBIS 3 — 0%)'),
+            ('4', '4 — Monto exento'),
+        ],
+        string='Indicador facturación DGII',
+        help=(
+            'Valor XSD IndicadorFacturacion (0–4) en la línea del e-CF. No es el mismo código '
+            'que tipo_impuesto_dgii del impuesto (0–6). Equivalencias: README l10n_do_dgii_fe_base '
+            '«Equivalencias DGII». Vacío: el generador deduce desde impuestos (monto ≥ 0); las '
+            'retenciones negativas no clasifican — use este campo sólo si debe forzar el indicador.'
+        ),
+    )
 
     @api.constrains('tax_ids')
     def _check_single_tax_per_group_dgii(self):

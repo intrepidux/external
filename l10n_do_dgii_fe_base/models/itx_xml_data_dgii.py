@@ -17,6 +17,45 @@ ICP_QR_LOCAL_FALLBACK = 'l10n_do_dgii_fe_base.qr_local_fallback'
 ICP_DEBUG_REPORT_QR = 'l10n_do_dgii_fe_base.debug_report_qr'
 
 
+def dgii_security_code_from_signed_xml_string(signed_xml):
+    """Ver mismo nombre en ``itx_dgii_api.models.dgii_signer`` (RFCE: CodigoSeguridadeCF; ECF: SignatureValue)."""
+    if not signed_xml or not isinstance(signed_xml, str):
+        return ''
+    chunk = signed_xml.strip()[:800000]
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(chunk)
+    except ET.ParseError:
+        return ''
+
+    def _local_tag(el):
+        if el.tag is None:
+            return ''
+        return el.tag.split('}')[-1]
+
+    for el in root.iter():
+        if _local_tag(el) == 'CodigoSeguridadeCF':
+            txt = (el.text or '').strip()
+            if txt:
+                return txt[:6]
+
+    sig_val = ''
+    for el in root.iter():
+        if _local_tag(el) == 'SignatureValue' and (el.text or '').strip():
+            sig_val = ''.join((el.text or '').split())
+            break
+    if len(sig_val) >= 6:
+        return sig_val[:6]
+
+    for el in root.iter():
+        if _local_tag(el) == 'DigestValue' and (el.text or '').strip():
+            d = ''.join((el.text or '').split())
+            if len(d) >= 6:
+                return d[:6]
+            break
+    return ''
+
+
 def _post_dgii_json_route(url, params_dict, timeout=30):
     """
     POST a rutas Odoo type='json': el servidor espera JSON-RPC 2.0 con params.
@@ -334,6 +373,18 @@ class ItxXMLDataDGII(models.Model):
         invoice.ensure_one()
         return invoice._prepare_tax_summary_for_dgii_api(invoice)
 
+    def _sync_signature_from_signed_xml_if_missing(self):
+        """Si la API dejó ``signature`` vacío (ECF sin CodigoSeguridadeCF), derivarlo del XML firmado."""
+        self.ensure_one()
+        if (self.signature or '').strip():
+            return
+        sx = (self.signed_xml or '').strip()
+        if not sx:
+            return
+        code = dgii_security_code_from_signed_xml_string(sx)
+        if code:
+            self.signature = code
+
     def _build_fc_consulta_timbre_qr_stamp(self):
         """
         Sello para QR en RFCE: ConsultaTimbreFC (misma URL base que l10n_do_ecf_invoicing).
@@ -362,6 +413,66 @@ class ItxXMLDataDGII(models.Model):
         qr_string = (
             'https://fc.dgii.gov.do/%s/ConsultaTimbreFC?RncEmisor=%s&ENCF=%s&MontoTotal=%s&CodigoSeguridad=%s'
             % (env_name, rnc, encf, monto_s, urls.url_quote_plus(sec) or '')
+        )
+        return urls.url_quote_plus(qr_string.replace('+', '%2B'))
+
+    def _build_ecf_consulta_timbre_qr_stamp(self):
+        """
+        Sello QR para e-CF completo (no RFCE): ``https://ecf.dgii.gov.do/{ambiente}/consultatimbre``.
+        Parámetros según descripción técnica DGII (RI / consulta timbre).
+        """
+        self.ensure_one()
+        from odoo.tools import urls
+
+        inv = self.account_move_id
+        sec = (self.signature or '').strip()
+        if not inv or not sec:
+            return None
+        hdr = (self.signed_xml or '')[:1200]
+        if '<ECF>' not in hdr:
+            return None
+        cre = self.company_id.fe_dgii_id.filtered(lambda p: p.active)[:1]
+        env_seg = (cre.dgii_environment or 'certecf').strip().lower()
+        rnc_e = ''.join(c for c in str(inv.company_id.vat or '') if c.isdigit())
+        rnc_c = ''.join(c for c in str(inv.partner_id.vat or '') if c.isdigit())
+        encf = (inv.l10n_latam_document_number or inv.ref or '').strip()
+        if not rnc_e or not encf:
+            return None
+        idoc = inv.invoice_date
+        fecha_emision = idoc.strftime('%d-%m-%Y') if idoc else ''
+        if not fecha_emision:
+            return None
+        try:
+            monto = abs(float(inv.amount_total))
+        except (TypeError, ValueError):
+            monto = 0.0
+        monto_s = ('%.2f' % monto).rstrip('0').rstrip('.')
+        dt_firma = self._parse_fecha_hora_firma_from_xml(self.signed_xml or '')
+        if dt_firma:
+            fechafirma = dt_firma.strftime('%d-%m-%Y %H:%M:%S')
+        elif inv.l10n_do_ecf_sign_date:
+            try:
+                dt2 = fields.Datetime.to_datetime(inv.l10n_do_ecf_sign_date)
+                fechafirma = dt2.strftime('%d-%m-%Y %H:%M:%S')
+            except (ValueError, TypeError, AttributeError):
+                fechafirma = ''
+        else:
+            fechafirma = ''
+        if not fechafirma:
+            return None
+        qr_string = (
+            'https://ecf.dgii.gov.do/%s/consultatimbre?rncemisor=%s&rnccomprador=%s&encf=%s'
+            '&fechaemision=%s&montototal=%s&fechafirma=%s&codigoseguridad=%s'
+            % (
+                env_seg,
+                rnc_e,
+                rnc_c,
+                encf.lower(),
+                fecha_emision,
+                monto_s,
+                urls.url_quote_plus(fechafirma) or '',
+                urls.url_quote_plus(sec) or '',
+            )
         )
         return urls.url_quote_plus(qr_string.replace('+', '%2B'))
 
@@ -566,11 +677,23 @@ class ItxXMLDataDGII(models.Model):
                     self.id,
                     len((self.qr_code or '').strip()),
                 )
-        else:
-            _logger.info(
-                'QR: sin sello API y fallback RFCE no aplicable (no RFCE o sin firma). id=%s',
-                self.id,
-            )
+            return
+
+        stamp_ecf = self._build_ecf_consulta_timbre_qr_stamp()
+        if stamp_ecf:
+            self.qr_code = stamp_ecf
+            if dbg:
+                _logger.info(
+                    '[DGII][report_qr] qr persistido fallback ECF consultatimbre | itx_id=%s final_len=%s',
+                    self.id,
+                    len((self.qr_code or '').strip()),
+                )
+            return
+
+        _logger.info(
+            'QR: sin sello API y sin fallback FC/ECF aplicable (firma/código seguridad). id=%s',
+            self.id,
+        )
 
     def _apply_dgii_recepcion_from_submit(self, response_data):
         """
@@ -848,6 +971,7 @@ class ItxXMLDataDGII(models.Model):
                 self.signed_xml = response_data.get('signed_xml')
             if response_data.get('signature'):
                 self.signature = response_data.get('signature')
+            self._sync_signature_from_signed_xml_if_missing()
 
             # Process result based on new API response format
             if response_data.get('success'):
@@ -1026,15 +1150,17 @@ class ItxXMLDataDGII(models.Model):
 
             # Consulta DGII: prevalece dgii_status/estado real (no status técnico CHECKED/ACCEPTED).
             self._enrich_api_response_with_dgii_json_from_error(response_data)
-            self._apply_dgii_recepcion_from_submit(response_data)
-
-            dgii_label = self.dgi_status or dgii_estado_label_from_response(response_data)
-            dgii_class = dgii_estado_classification(dgii_label)
 
             if response_data.get('signed_xml'):
                 self.signed_xml = response_data.get('signed_xml')
             if response_data.get('signature'):
                 self.signature = response_data.get('signature')
+            self._sync_signature_from_signed_xml_if_missing()
+
+            self._apply_dgii_recepcion_from_submit(response_data)
+
+            dgii_label = self.dgi_status or dgii_estado_label_from_response(response_data)
+            dgii_class = dgii_estado_classification(dgii_label)
 
             auth_date_top = response_data.get('auth_date')
             if auth_date_top:

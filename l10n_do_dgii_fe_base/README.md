@@ -83,6 +83,37 @@ Ir al diario de facturas y activar:
 Las facturas enviadas pueden verificarse en:
 **Facturación → DGII → Registros XML**
 
+## Equivalencias DGII: `tipo_impuesto_dgii` (impuesto) ↔ `IndicadorFacturacion` (XML)
+
+En **account.tax**, `tipo_impuesto_dgii` usa códigos internos **0–6** del módulo `l10n_do_dgii_fe_base`.
+
+En el **XML e-CF**, cada línea lleva **IndicadorFacturacion** con valores XSD **0–4** (tipo de facturación del ítem).
+
+**No son la misma escala**: por ejemplo, en el impuesto **`0` = Exento** mapea a indicador XSD **`4`**; en el impuesto **`4` = No facturable** mapea a indicador XSD **`0`**.
+
+Opcionalmente puede fijarse **`dgii_indicador_facturacion`** en **account.move.line** (o en el JSON/API) con ya el valor **XSD 0–4**; si viene vacío, el generador deduce el indicador desde `tipo_impuesto_dgii` de cada `tax_ids` con la tabla siguiente (implementada en `itx_dgii_api`: `TIPO_IMPUESTO_DGII_TO_INDICADOR`).
+
+| `tipo_impuesto_dgii` | Etiqueta maestro (impuesto) | `IndicadorFacturacion` (XSD / línea manual) |
+|----------------------|----------------------------|---------------------------------------------|
+| `0` | Exento | **4** |
+| `1` | 18% (ITBIS 1) | **1** |
+| `2` | 16% (ITBIS 2) | **2** |
+| `3` | 0% ITBIS (E46) | **3** |
+| `4` | No facturable Hoteles y/o Restaurantes | **0** |
+| `5` | 18% + 10% (ITBIS 1 + Ley) | **1** |
+| `6` | Exento + 10% (Ley) | **4** |
+
+Con **precio gravado típico** y **solo retenciones** en `tax_ids` (ISR/ITBIS retenido: `tax_ids[].amount` negativo porque es **% del maestro**), ver `dgii_indicador_facturacion_from_line_taxes`: se usa **`tipo_impuesto_dgii` sobre la retención** cuando aplica y no es código `0` de anotación equivocada, o bien **fallback** con `price_subtotal` cuando no clasifica ningún impuesto pero la línea es sólo tasas negativas.
+
+### Líneas sólo con retención (ej. ISR ‑27 % sobre servicio)
+
+El JSON de Odoo usa `tax_ids[].amount` = **porcentaje del maestro** (`account.tax.amount`), por tanto las retenciones son negativas. Si no hay ITBIS + en línea pero la base existe:
+
+- Opción A: **`tipo_impuesto_dgii` en el impuesto de retención** (p.ej. `1`) — el generador usa ese código también con `amount` negativo (**no** usar `0` de relleno para «Exento», se ignora en retención).
+- Opción B: sin tipo en impuestos, si vienen **`price_subtotal` > 0** en la línea del payload ⇒ en tipos e-CF habituales **indicador gravado (1)** por defecto; en **TipoeCF 47** (pago al exterior) DGII **sólo permite exento**: el generador normaliza **siempre a indicador 4** (código reg. 244).
+
+**TipoeCF 47:** no hace falta añadir manualmente un impuesto «ITBIS Exempt» solo para que DGII acepte la línea — el XML usa **IndicadorFacturacion 4** y los totales reconcilian `MontoExento` desde las líneas cuando el indicador es 4.
+
 ## Estructura de Datos Enviados
 
 El módulo envía los siguientes datos a la API:

@@ -93,34 +93,18 @@ class DGIIXmlPreviewWizard(models.TransientModel):
             invoice_data = invoice._prepare_invoice_data_for_api(invoice)
             type_document = invoice.doc_type_E(invoice)
             
-            api_base_url = self._get_api_base_url().rstrip('/')
-            api_url = f'{api_base_url}/dgii/v1/generate_xml'
-            
-            payload = {
-                'jsonrpc': '2.0',
-                'method': 'call',
-                'params': {
+            cre = invoice.company_id.fe_dgii_id.filtered(lambda p: p.active)[:1]
+            if not cre:
+                raise UserError(_('Configure un registro activo en Maestro FE DGII.'))
+            result = cre._api_jsonrpc(
+                'generate_xml',
+                cre._api_params_with_auth({
                     'invoice_data': invoice_data,
                     'type_document': type_document,
-                },
-                'id': 1,
-            }
-            
-            response = requests.post(
-                api_url,
-                json=payload,
-                headers={'Content-Type': 'application/json'},
+                }),
+                use_api_key=not cre._use_legacy_cert_in_request(),
                 timeout=30,
             )
-            response.raise_for_status()
-            body = response.json()
-            
-            if body.get('error'):
-                err = body['error']
-                msg = err.get('data', {}).get('message') or err.get('message') or str(err)
-                raise UserError(_('Error API: %s') % msg)
-            
-            result = body.get('result') or {}
             self.xml_content = result.get('xml_content') or ''
             ok = bool(result.get('success')) and bool(self.xml_content)
             self.xml_valid = ok

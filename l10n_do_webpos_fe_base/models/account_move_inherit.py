@@ -108,6 +108,16 @@ class AccountMove(models.Model):
     )
 
 
+    l10n_do_webpos_electronic_stamp_encoded = fields.Char(
+        compute="_compute_qr_encoded"
+    )
+
+    @api.depends('l10n_do_webpos_electronic_stamp')
+    def _compute_qr_encoded(self):
+        for rec in self:
+            rec.l10n_do_webpos_electronic_stamp_encoded = quote(rec.l10n_do_webpos_electronic_stamp or '')
+
+
 
     # Campo computado para determinar si es factura electrónica (compatible con ambas versiones)
     is_ecf_invoice = fields.Boolean(

@@ -12,9 +12,7 @@
 
                     <!-- QR -->
                     <div style="display: inline-block; vertical-align: top;">
-                        <img alt="Barcode"
-                            style="width: 100px; height: 100px;"
-                            t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp"/>
+                        <img t-if="o.l10n_do_webpos_electronic_stamp_encoded" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp_encoded"/>
                     </div>
 
                     <!-- INFO -->

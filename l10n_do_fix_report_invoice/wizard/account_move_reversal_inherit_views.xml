@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_account_move_reversal_l10n_do_fix_an" model="ir.ui.view">
+        <field name="name">view.account.move.reversal.l10n_do_fix_an</field>
+        <field name="model">account.move.reversal</field>
+        <field name="priority" eval="200"/>
+        <field name="inherit_id" ref="l10n_do_accounting_yasmany.view_account_move_reversal_inherited"/>
+        <field name="arch" type="xml">
+            <field name="l10n_latam_document_number" position="replace">
+                <field name="l10n_latam_document_number"
+                       invisible="not l10n_latam_manual_document_number"
+                       required="l10n_latam_manual_document_number"/>
+            </field>
+        </field>
+    </record>
+</odoo>

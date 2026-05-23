@@ -142,6 +142,33 @@ class AccountMove(models.Model):
                     record.country_code == "DO"
                 )
 
+    def _get_fiscal_rate(self):
+        '''
+        Ejemplos:
+        - Compañía base DOP, factura USD: retorna ~60.0
+        - Compañía base USD, factura USD: retorna ~60.0
+        - Compañía base DOP, factura DOP: retorna 1.0
+        
+        '''
+        self.ensure_one()
+        # 1. Si la factura es en DOP, no hay nada que hacer
+        if self.currency_id.name == 'DOP':
+            return 1.0
+            
+        # 2. Optimización: Si la compañía es DOP, el inverse_rate ya es lo que buscamos
+        if self.company_id.currency_id.name == 'DOP':
+            return  round(self.currency_id.inverse_rate or 1.0, 4)
+
+        # 3. Caso "No hay de otra": La compañía no es DOP, calculamos relación relativa
+        currency_dop = self.env.ref('base.DOP', raise_if_not_found=False) or \
+                       self.env['res.currency'].search([('name', '=', 'DOP')], limit=1)
+        
+        if currency_dop and self.currency_id.rate:
+            # (Unidades de DOP por 1 unidad base) / (Unidades de moneda factura por 1 unidad base)
+            return  round(currency_dop.rate / self.currency_id.rate, 4)
+            
+        return  round(self.currency_id.inverse_rate or 1.0, 4)
+
     def get_clean_description(self, line):
         """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
         
@@ -283,6 +310,7 @@ class AccountMove(models.Model):
     def _is_l10n_do_webpos_allowed_document(self):
         self.ensure_one()
         # Si no es factura electrónica o no tiene número de documento o no es diario webpos, no está permitida
+        _logger.info(f"  _is_l10n_do_webpos_allowed_document: is_ecf_invoice={self.is_ecf_invoice}, l10n_latam_document_number={self.l10n_latam_document_number}, is_webpos={self.journal_id.is_webpos}")
         if not self.is_ecf_invoice or not self.l10n_latam_document_number or not self.journal_id.is_webpos:
             return False
 
@@ -293,7 +321,7 @@ class AccountMove(models.Model):
 
         if flujo == "ventas":
             # Ventas directas + Notas de crédito/débito que afecten ventas
-            return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES
+            return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES or tipo_ecf == '32' # Added 32 for credit notes
         elif flujo == "compras":
             # Compras (remitidas en 606) + Notas que afecten gastos
             return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
@@ -538,7 +566,7 @@ class AccountMove(models.Model):
                 'id': invoice.currency_id.id,
                 'name': invoice.currency_id.name or '',
                 'decimal_places': invoice.currency_id.decimal_places or 2,
-                'inverse_rate': invoice.currency_id.rate or 1.0
+                'inverse_rate': invoice._get_fiscal_rate()
             }
 
             # Prepare company data with fallback

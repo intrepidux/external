@@ -191,23 +191,26 @@ class ItxFeDgii(models.Model):
     def _sync_payload_base(self):
         self.ensure_one()
         cert_b64 = self._certificate_b64()
-        if not cert_b64 or not self.certificate_password:
+        if self.dgii_client_mode == 'prod' and (not cert_b64 or not self.certificate_password):
             raise UserError(_('Cargue certificado P12 y contraseña antes de sincronizar.'))
         if not self.api_provisioning_key:
             raise UserError(_('Configure la clave de aprovisionamiento API.'))
         rnc = (self.rnc or '').replace('-', '').strip()
         if not rnc:
             raise UserError(_('La compañía debe tener RNC (vat) configurado.'))
-        return {
+        payload = {
             'name': self.name,
             'rnc': rnc,
             'dgii_environment': self.dgii_environment or 'certecf',
-            'certificate_b64': cert_b64,
-            'certificate_password': self.certificate_password,
+            'dgii_client_mode': self.dgii_client_mode or 'prod',
             'allow_outbound': True,
             'allow_inbound_fe': self.allow_inbound_fe,
             'allow_inbound_auth': self.allow_inbound_auth,
         }
+        if cert_b64 and self.certificate_password:
+            payload['certificate_b64'] = cert_b64
+            payload['certificate_password'] = self.certificate_password
+        return payload
 
     def action_sync_api_client(self):
         self.ensure_one()

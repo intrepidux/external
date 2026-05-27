@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ecf_fiscal_client" model="l10n_latam.document.type">
+        <field name="sequence">1</field>
+        <field name="code">E</field>
+        <field name="name">Crédito Fiscal Electrónica</field>
+        <field name="report_name">Factura de Crédito Fiscal Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-fiscal</field>
+        <field name="doc_code_prefix">E31</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_consumer_supplier" model="l10n_latam.document.type">
+        <field name="sequence">2</field>
+        <field name="code">E</field>
+        <field name="name">Consumo Electrónica</field>
+        <field name="report_name">Factura de Consumo Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-consumer</field>
+        <field name="doc_code_prefix">E32</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_debit_note_client" model="l10n_latam.document.type">
+        <field name="sequence">3</field>
+        <field name="code">E</field>
+        <field name="name">Nota de Débito Electrónica</field>
+        <field name="report_name">Nota de Débito Electrónica</field>
+        <field name="internal_type">debit_note</field>
+        <field name="l10n_do_ncf_type">e-debit_note</field>
+        <field name="doc_code_prefix">E33</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_credit_note_client" model="l10n_latam.document.type">
+        <field name="sequence">4</field>
+        <field name="code">E</field>
+        <field name="name">Nota de Crédito Electrónica</field>
+        <field name="report_name">Nota de Crédito Electrónica</field>
+        <field name="internal_type">credit_note</field>
+        <field name="l10n_do_ncf_type">e-credit_note</field>
+        <field name="doc_code_prefix">E34</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_informal_supplier" model="l10n_latam.document.type">
+        <field name="sequence">5</field>
+        <field name="code">E</field>
+        <field name="name">Compras Electrónica</field>
+        <field name="report_name">Factura de Compra Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-informal</field>
+        <field name="doc_code_prefix">E41</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_minor_supplier" model="l10n_latam.document.type">
+        <field name="sequence">6</field>
+        <field name="code">E</field>
+        <field name="name">Gasto Menor Electrónica</field>
+        <field name="report_name">Factura Gasto Menor Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-minor</field>
+        <field name="doc_code_prefix">E43</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_special_client" model="l10n_latam.document.type">
+        <field name="sequence">7</field>
+        <field name="code">E</field>
+        <field name="name">Régimen Especial Electrónica</field>
+        <field name="report_name">Factura de Régimen Especial Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-special</field>
+        <field name="doc_code_prefix">E44</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_gov_client" model="l10n_latam.document.type">
+        <field name="sequence">8</field>
+        <field name="code">E</field>
+        <field name="name">Factura Gubernamental Electrónica</field>
+        <field name="report_name">Factura Gubernamental Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-governmental</field>
+        <field name="doc_code_prefix">E45</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_export_client" model="l10n_latam.document.type">
+        <field name="sequence">9</field>
+        <field name="code">E</field>
+        <field name="name">Exportación Electrónica</field>
+        <field name="report_name">Factura de Exportación Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-export</field>
+        <field name="doc_code_prefix">E46</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="ecf_exterior_supplier" model="l10n_latam.document.type">
+        <field name="sequence">10</field>
+        <field name="code">E</field>
+        <field name="name">Pago al Exterior Electrónica</field>
+        <field name="report_name">Factura de Pago al Exterior Electrónica</field>
+        <field name="internal_type">invoice</field>
+        <field name="l10n_do_ncf_type">e-exterior</field>
+        <field name="doc_code_prefix">E47</field>
+        <field name="country_id" ref="base.do"/>
+        <field name="is_vat_required">False</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

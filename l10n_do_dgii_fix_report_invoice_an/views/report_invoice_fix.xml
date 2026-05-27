@@ -49,10 +49,11 @@
 
     <!-- Misma huella que l10n_do_fix_report_invoice_an (external_layout + xpath); campos DGII
          (itx_dgii_*) en lugar de l10n_do_webpos_*. Id de plantilla: módulo + external_layout… -->
-    <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting.external_layout_standard_inherited">
+    <!-- <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting.external_layout_standard_inherited"> -->
+    <template id="report_invoice_document_ecf_fix" inherit_id="web.external_layout_standard">
 
         <xpath expr="//div[@class='text-center']" position="before">
-            <div t-if="o and o.is_ecf_invoice and (o.itx_dgii_electronic_stamp_encoded or o.l10n_do_ecf_security_code)" style="text-align: left; margin-bottom: 10px;">
+            <div t-if="o and o._name == 'account.move' and o.is_ecf_invoice and (o.itx_dgii_electronic_stamp_encoded or o.l10n_do_ecf_security_code)" style="text-align: left; margin-bottom: 10px;">
                 <div style="display: inline-block; vertical-align: top;">
                     <img t-if="o.itx_dgii_electronic_stamp_encoded" t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.itx_dgii_electronic_stamp_encoded"/>
                 </div>

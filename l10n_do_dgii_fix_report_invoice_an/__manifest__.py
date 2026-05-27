@@ -2,8 +2,7 @@
     'name': 'L10n Do dgii fix report invoice AN',
     'version': '1.3',
     'depends': [
-        'l10n_do_accounting',
-        'l10n_do_dgii_fe_base',
+         'l10n_do_dgii_fe_base', 'web'
     ],
     'data': [
         'views/report_invoice_fix.xml',

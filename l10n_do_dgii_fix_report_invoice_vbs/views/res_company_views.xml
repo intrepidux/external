@@ -2,13 +2,13 @@
 <odoo>
     <record id="view_company_form_ecf_sequences" model="ir.ui.view">
         <field name="name">res.company.form.ecf.sequences</field>
-        <field name="inherit_id" ref="l10n_do_accounting_vbs.view_company_form"/>
+        <field name="inherit_id" ref="base.view_company_form"/>
         <field name="model">res.company</field>
         <field name="arch" type="xml">
-            <field name="l10n_do_default_client" position="after">
-                <field name="l10n_do_ecf_issuer" invisible="l10n_do_country_code != 'DO'"/>
-                <field name="l10n_do_fiscal_sequence_mode" invisible="l10n_do_country_code != 'DO'" readonly="not l10n_do_ecf_issuer"/>
-            </field>
+            <xpath expr="//field[@name='vat']" position="after">
+                <field name="l10n_do_ecf_issuer" />
+                <field name="l10n_do_fiscal_sequence_mode" readonly="not l10n_do_ecf_issuer"/>
+            </xpath>
         </field>
     </record>
 </odoo>

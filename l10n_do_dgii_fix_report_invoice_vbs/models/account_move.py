@@ -9,6 +9,13 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    # Alias para el reporte l10n_do_accounting (usa l10n_do_electronic_stamp en QWeb).
+    l10n_do_electronic_stamp = fields.Char(
+        related="itx_dgii_electronic_stamp",
+        string="Electronic Stamp (DGII QR)",
+        readonly=True,
+    )
+
     def _l10n_do_ecf_document_type(self, ncf_type):
         return self.env["l10n_latam.document.type"].search([
             ("country_id.code", "=", "DO"),

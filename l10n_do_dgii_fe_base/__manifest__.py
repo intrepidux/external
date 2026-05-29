@@ -1,18 +1,16 @@
 {
     'name': "ITX DGII FE Base - República Dominicana",
-    'summary': """
-        Integración facturación electrónica DGII compatible con cualquier localización dominicana
-        """,
-    'description': """
-        Módulo base para la integración de Facturación Electrónica (ECF) con los servicios de DGII
-        a través de una API externa.
-        """,
+    'summary': "Integración facturación electrónica DGII compatible con cualquier localización dominicana",
+    'description': "Módulo base para la integración de Facturación Electrónica (ECF) con los servicios de DGII a través de una API externa.",
     'author': "Intrepidux SRL, David Contreras",
     'website': "http://www.intrepidux.com",
-    "license": "OPL-1",
-    "support": "soporte@intrepidux.com",
+    'license': "OPL-1",
+    'support': "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "17.0.1.0.13",
+    'version': "15.0.1.0.13",
+    'installable': True,
+    'application': False,
+    'auto_install': False,
 
 
     # any module necessary for this one to work correctly

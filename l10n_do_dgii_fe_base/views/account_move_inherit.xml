@@ -24,14 +24,14 @@ action = records.action_manual_resend_dgii()
             <field name="inherit_id" ref="account_edi.view_move_form_inherit" />
             <field name="arch" type="xml">
                 <xpath expr="//page[@id='edi_documents']" position="replace">
-                    <page id="edi_documents" string="Documeto EDI (XML)" invisible="not edi_document_ids">
+                <page id="edi_documents" string="Documeto EDI (XML)" attrs="{'invisible':[('edi_document_ids','=',False)]}">
                         <field name="edi_document_ids">
                             <tree create="false" delete="false" edit="false" decoration-danger="error">
                                 <field name="name"/>
                                 <field name="edi_format_name"/>
                                 <field name="state"/>
                                 <field name="error" invisible="1"/>
-                                <button name="action_export_xml" type="object" class="oe_link oe_inline" string="Download" invisible="not error"/>
+                                <button name="action_export_xml" type="object" class="oe_link oe_inline" string="Download" attrs="{'invisible':[('error','=',False)]}"/>
                             </tree>
                         </field>
                     </page>
@@ -67,8 +67,8 @@ action = records.action_manual_resend_dgii()
                                     <field name="status" string="DGII Status"/>
                                     <field name="dgi_status" string="Estado DGII"/>
                                     <field name="dgi_err_msg" string="Mensaje Error DGII"/>
-                        
-                                
+                                    
+                                    
                                     <button name="rebuild_xml_to_send" type="object" string="Reconstruir envio" class="btn-secondary"/>
                                     <button name="action_verify_sent_encf" type="object" string="Verificar DGII" class="btn-secondary"/>
                                  
@@ -86,7 +86,7 @@ action = records.action_manual_resend_dgii()
                                 <!-- <field name="json_response" widget="text" options="{'filename':'Json_Data'}" /> -->
                                 
                                 <!-- Botón para reenviar -->
-                                <!-- <button name="action_resend_xml" type="object" string="Reenviar" class="btn-secondary" invisible="status == 'sent'"/> -->
+                                <!-- <button name="action_resend_xml" type="object" string="Reenviar" class="btn-secondary" attrs="{'invisible':[('status','==','sent')]}"/> -->
 
                                 <!-- <button name="action_resend_xml" type="object" string="Reenviar" class="btn-secondary"/>
                                 <button name="rebuild_xml_to_send" type="object" string="Reconstruir envio" class="btn-secondary"/>
@@ -97,15 +97,14 @@ action = records.action_manual_resend_dgii()
                     </page>
                 </xpath>
                 <xpath expr="//group[@id='header_left_group']" position="inside">
-                    <field name="is_ecf_invoice" invisible="1"/>
-                    <field name="itx_dgii_dgi_status" invisible="not is_ecf_invoice or not journal_id.is_dgii"/>
-                    <field name="l10n_do_ecf_sign_date"
-                        invisible="not is_ecf_invoice or not journal_id.is_dgii"/>
+                    <!-- Removed direct reference to is_ecf_invoice to avoid undefined field errors -->
+                     <!-- Visibility based on journal's is_dgii field is not directly supported; hide field by default -->
+                    <field name="itx_dgii_dgi_status" invisible="1"/>
+                    <field name="l10n_do_ecf_sign_date" invisible="1"/>
                 </xpath>
 
             </field>
         </record>
-
 
 
     </data>

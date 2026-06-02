@@ -1,17 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-                <record id="view_account_journal_form_inherit" model="ir.ui.view">
+        <record id="view_account_journal_form_inherit" model="ir.ui.view">
             <field name="model">account.journal</field>
             <field name="name">account.journal.form</field>
             <field name="inherit_id" ref="account.view_account_journal_form"/>
             <field name="arch" type="xml">
-                    <xpath expr="//field[@name='type']" position="after">
-
-                        <!-- Muestra si es compañia Dominicana es verdadero -->
-                        <field name="is_dgii" invisible="country_code != 'DO'"/>
-
-                    </xpath>
-
+                <xpath expr="//field[@name='type']" position="after">
+                    <!-- Muestra si es compañia Dominicana es verdadero -->
+                    <field name="country_code" attrs="{'invisible':True}"/>
+                    <field name="is_dgii" attrs="{'invisible':[('country_code','!=','DO')]}"/>
+                </xpath>
             </field>
         </record>
     </data>

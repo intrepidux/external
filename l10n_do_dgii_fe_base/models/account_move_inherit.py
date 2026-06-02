@@ -37,7 +37,7 @@ class AccountMove(models.Model):
     itx_xml_data_ids = fields.One2many('itx.xml.data.dgii', 'account_move_id', string='XML Data ids')
 
 
-    itx_xml_data_id = fields.Many2one('itx.xml.data.dgii', string='XML Data DGII', ondelete='set null')
+    itx_xml_data_id = fields.Many2one('itx.xml.data.dgii', string='XML Data Link', ondelete='set null')
 
     l10n_do_itbis_tax_group_id = fields.Many2one(
         'account.tax.group',
@@ -78,6 +78,11 @@ class AccountMove(models.Model):
         compute="_compute_qr_encoded"
     )
 
+
+    is_dgii = fields.Boolean(
+        related='journal_id.is_dgii',
+        store=True,
+    )
     # Campos para facturación electrónica DGII, mover cerca de itx_dgii_electronic_stamp_encoded    
     l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
     l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
@@ -438,43 +443,84 @@ class AccountMove(models.Model):
 
     def _call_dgii_api(self, endpoint, data):
         """Make a JSON-RPC call to the dgii_api endpoints."""
+        _logger.info("DGII API Call - Starting API call to endpoint: %s", endpoint)
         cre = self.company_id.fe_dgii_id.filtered(lambda p: p.active)[:1]
+        _logger.info("DGII API Call - Company credential found: %s", bool(cre))
+        
         path = endpoint.replace('/dgii/v1/', '').lstrip('/')
         if not path:
             path = endpoint.lstrip('/')
+            
+        _logger.info("DGII API Call - Endpoint: %s, Path: %s", endpoint, path)
+        _logger.debug("DGII API Call - Data payload: %s", json.dumps(data, default=str)[:500] + "..." if len(json.dumps(data, default=str)) > 500 else json.dumps(data, default=str))
+        
         try:
             if cre:
+                _logger.info("DGII API Call - Using company credentials for authentication")
+                _logger.debug("DGII API Call - Company credential details - RNC: %s, Client ID: %s, Has API Key: %s, Environment: %s, Client Mode: %s", 
+                             getattr(cre, 'rnc', 'N/A'), 
+                             getattr(cre, 'api_client_id', 'N/A'), 
+                             bool(getattr(cre, 'api_key', None)),
+                             getattr(cre, 'dgii_environment', 'N/A'),
+                             getattr(cre, 'dgii_client_mode', 'N/A'))
+                
+                # Force usage of API Key for all requests in production-like environment
+                # so that X-API-Key header is sent.
+                _logger.info("DGII API Call - Preparing auth params")
                 params = cre._api_params_with_auth(data)
+                _logger.debug("DGII API Call - Auth params: %s", json.dumps(params, default=str))
+                
+                _logger.info("DGII API Call - Making JSON-RPC call with API key authentication")
                 result = cre._api_jsonrpc(
                     path,
                     params,
-                    use_api_key=not cre._use_legacy_cert_in_request(),
+                    use_api_key=True,
                     timeout=30,
                 )
+                _logger.info("DGII API Call - Successful response received")
+                _logger.debug("DGII API Call - Response result: %s", json.dumps(result, default=str)[:500] + "..." if len(json.dumps(result, default=str)) > 500 else json.dumps(result, default=str))
                 return {'jsonrpc': '2.0', 'id': 1, 'result': result}
+                
+            _logger.info("DGII API Call - Using fallback method (no company credentials)")
             base_url = self._get_api_base_url()
             url = f"{base_url.rstrip('/')}{endpoint}"
+            _logger.info("DGII API Call - Base URL: %s, Full URL: %s", base_url, url)
+            
             jsonrpc_data = {
                 'jsonrpc': '2.0',
                 'method': 'call',
                 'params': data,
                 'id': 1,
             }
+            _logger.debug("DGII API Call - Request data: %s", json.dumps(jsonrpc_data, default=str))
+            
+            _logger.info("DGII API Call - Making POST request")
             response = requests.post(
                 url,
                 json=jsonrpc_data,
                 headers={'Content-Type': 'application/json'},
                 timeout=30,
             )
+            _logger.info("DGII API Call - Response status code: %s", response.status_code)
+            _logger.debug("DGII API Call - Response headers: %s", dict(response.headers))
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            _logger.info("DGII API Call - Successful JSON response received")
+            _logger.debug("DGII API Call - Response JSON: %s", json.dumps(result, default=str)[:500] + "..." if len(json.dumps(result, default=str)) > 500 else json.dumps(result, default=str))
+            return result
         except UserError:
             raise
         except requests.exceptions.RequestException as e:
             _logger.error('API call to %s failed: %s', endpoint, str(e))
+            _logger.error('Request details - URL: %s, Data: %s', url if 'url' in locals() else 'N/A', json.dumps(data, default=str) if data else 'N/A')
+            if 'response' in locals():
+                _logger.error('Response details - Status code: %s, Response text: %s', 
+                             response.status_code if hasattr(response, 'status_code') else 'N/A',
+                             response.text if hasattr(response, 'text') else 'N/A')
             raise UserError(_('Error calling DGII API: %s') % e) from e
         except Exception as e:
             _logger.error('Unexpected error calling API %s: %s', endpoint, str(e))
+            _logger.error('Error details - Data: %s', json.dumps(data, default=str) if data else 'N/A')
             raise UserError(_('Unexpected error calling DGII API: %s') % e) from e
 
     def copy(self, default=None):
@@ -723,7 +769,7 @@ class AccountMove(models.Model):
             return []
         per_payment_amount = {}
         term_lines = invoice.line_ids.filtered(
-            lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable')
+            lambda l: l.account_id.internal_type in ('receivable', 'payable')
         )
         for line in term_lines:
             for partial in (line.matched_credit_ids | line.matched_debit_ids):
@@ -955,8 +1001,10 @@ class AccountMove(models.Model):
 
     def _prepare_invoice_data_for_api(self, invoice):
         """Prepare comprehensive invoice data for API with robust error handling"""
+        _logger.info("Preparing invoice data for API - Invoice ID: %s, Document Number: %s", invoice.id, invoice.l10n_latam_document_number)
         try:
             # Prepare partner data with comprehensive fallback
+            _logger.debug("Preparing partner data for invoice %s", invoice.id)
             partner_data = {
                 'name': invoice.partner_id.name or '',
                 'vat': ''.join(filter(str.isdigit, invoice.partner_id.vat or '')),
@@ -969,6 +1017,8 @@ class AccountMove(models.Model):
                 else '',
                 'email': invoice.partner_id.email or '',
             }
+            _logger.debug("Partner data prepared: %s", json.dumps(partner_data, default=str)[:200] + "..." if len(json.dumps(partner_data, default=str)) > 200 else json.dumps(partner_data, default=str))
+            
             if hasattr(invoice.partner_id, 'l10n_do_dgii_tax_payer_type'):
                 partner_data['l10n_do_dgii_tax_payer_type'] = (
                     invoice.partner_id.l10n_do_dgii_tax_payer_type or ''
@@ -980,14 +1030,17 @@ class AccountMove(models.Model):
                 partner_data['dgii_provincia_code'] = p_geo['dgii_provincia_code']
 
             # Prepare currency data
+            _logger.debug("Preparing currency data for invoice %s", invoice.id)
             currency_data = {
                 'id': invoice.currency_id.id,
                 'name': invoice.currency_id.name or '',
                 'decimal_places': invoice.currency_id.decimal_places or 2,
                 'inverse_rate': invoice._get_fiscal_rate()
             }
+            _logger.debug("Currency data prepared: %s", json.dumps(currency_data, default=str))
 
             # Datos de compañía para API (sin campos legacy opcionales: companyLicCod, branchCod, posCod)
+            _logger.debug("Preparing company data for invoice %s", invoice.id)
             c_partner = invoice.company_id.partner_id
             company_data = {
                 'id': invoice.company_id.id,
@@ -996,6 +1049,8 @@ class AccountMove(models.Model):
                 'street': (invoice.company_id.street or (c_partner.street if c_partner else '') or ''),
                 'city': (c_partner.city if c_partner else '') or (invoice.company_id.city or ''),
             }
+            _logger.debug("Basic company data prepared: %s", json.dumps(company_data, default=str))
+            
             if c_partner:
                 company_data['partner_id'] = {
                     'name': c_partner.name or '',
@@ -1008,8 +1063,16 @@ class AccountMove(models.Model):
                     company_data['dgii_municipio_code'] = em_geo['dgii_municipio_code']
                 if em_geo.get('dgii_provincia_code'):
                     company_data['dgii_provincia_code'] = em_geo['dgii_provincia_code']
+                    
+            # Log company DGII credentials information
             if hasattr(invoice.company_id, 'fe_dgii_id') and invoice.company_id.fe_dgii_id:
                 fe = invoice.company_id.fe_dgii_id.filtered(lambda r: r.active)[:1] or invoice.company_id.fe_dgii_id[:1]
+                _logger.info("Company DGII credentials found - ID: %s, Name: %s, RNC: %s, Environment: %s, Client Mode: %s", 
+                            fe.id if fe else 'N/A', 
+                            fe.name if fe else 'N/A', 
+                            fe.rnc if fe else 'N/A',
+                            getattr(fe, 'dgii_environment', 'N/A') if fe else 'N/A',
+                            getattr(fe, 'dgii_client_mode', 'N/A') if fe else 'N/A')
                 company_data['fe_dgii_id'] = [{
                     'id': fe.id,
                     'name': fe.name or invoice.company_id.name or '',
@@ -1017,13 +1080,19 @@ class AccountMove(models.Model):
                     'dgii_environment': fe.dgii_environment,
                     'dgii_client_mode': fe.dgii_client_mode,
                 }]
+            else:
+                _logger.warning("No DGII credentials found for company %s", invoice.company_id.name)
 
             # Solo ``display_type == 'product'``: secciones y notas no van al JSON/XML e-CF.
             # Líneas API/DGII: siempre base sin impuesto + impuestos aparte (Odoo ya usa
             # price_subtotal=total_excluded, price_total=total_included; da igual si el
             # impuesto es price_include en el maestro).
+            _logger.debug("Preparing invoice lines data for invoice %s", invoice.id)
             lines_data = []
-            for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
+            product_lines = invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
+            _logger.info("Found %d product lines in invoice %s", len(product_lines), invoice.id)
+            
+            for line in product_lines:
                 line_taxes = []
                 for tax in self._dgii_effective_line_taxes(line):
                     tg_name = (tax.tax_group_id.name or '') if tax.tax_group_id else ''
@@ -1055,9 +1124,7 @@ class AccountMove(models.Model):
                         # Formula: exclusive_price = inclusive_price / (1 + tax_rate)
                         adjusted_price_unit = line.price_unit / (1 + tax_rate) if tax_rate > 0 else line.price_unit
 
-
-
-                lines_data.append({
+                line_data = {
                     'name': self.get_clean_description(line),
                     'quantity': line.quantity or 0.0,
                     'discount': line.discount or 0.0,
@@ -1076,9 +1143,13 @@ class AccountMove(models.Model):
                         if getattr(line, 'dgii_indicador_facturacion', False)
                         else {}
                     ),
-                })
+                }
+                lines_data.append(line_data)
+                
+            _logger.debug("Prepared %d lines data for invoice %s", len(lines_data), invoice.id)
 
             # Determine NCF expiration date with robust handling for all invoice types
+            _logger.debug("Determining NCF expiration date for invoice %s", invoice.id)
             ncf_expiration_date = ''
             original_invoice = None
 
@@ -1121,6 +1192,7 @@ class AccountMove(models.Model):
                         ncf_expiration_date = ''
 
             # Calculate e-CF modification code automatically for DGII
+            _logger.debug("Calculating ECF modification code for invoice %s", invoice.id)
             ecf_modification_code = self._get_dgii_ecf_modification_code(invoice)
             _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", ecf_modification_code)
 
@@ -1135,6 +1207,7 @@ class AccountMove(models.Model):
                 l10n_do_origin_ncf = str(l10n_do_origin_ncf) if l10n_do_origin_ncf is not None else ''
 
             # Compute l10n_do_origin_ncf_date by searching for the origin invoice
+            _logger.debug("Computing origin NCF date for invoice %s", invoice.id)
             l10n_do_origin_ncf_date = ''
             if l10n_do_origin_ncf:
                 credit_origin_id = self.env["account.move"].sudo().search(
@@ -1148,10 +1221,12 @@ class AccountMove(models.Model):
             else:
                 l10n_do_origin_ncf_date = ''
 
+            _logger.debug("Preparing payments list for invoice %s", invoice.id)
             payments_list = invoice._prepare_payments_list_for_dgii_api(invoice)
             tipo_pago_dgii = invoice._dgii_tipo_pago_from_invoice(invoice)
 
             # Prepare main invoice record data
+            _logger.debug("Preparing main record data for invoice %s", invoice.id)
             record_data = {
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
                 'l10n_latam_document_number': invoice.l10n_latam_document_number or '',
@@ -1190,6 +1265,7 @@ class AccountMove(models.Model):
                 return obj
 
             # Limpia fechas antes de serializar
+            _logger.debug("Cleaning dates in record data for invoice %s", invoice.id)
             record_data_clean = clean_dates(record_data)
             lines_data_clean = clean_dates(lines_data)
             record_data_clean['lines'] = lines_data_clean
@@ -1197,6 +1273,8 @@ class AccountMove(models.Model):
             tax_summary = invoice._prepare_tax_summary_for_dgii_api(invoice)
             tax_summary = clean_dates(tax_summary)
             _logger.error("API DATA: %s", json.dumps(record_data_clean, indent=2, default=str))
+            
+            _logger.info("Invoice data preparation completed successfully for invoice %s", invoice.id)
             return {
                 'record': record_data_clean,
                 'lines': lines_data_clean,
@@ -1209,6 +1287,7 @@ class AccountMove(models.Model):
 
         except Exception as e:
             _logger.error(f"Error preparing invoice data for API: {str(e)}")
+            _logger.error("Error details for invoice %s - Type: %s, Args: %s", invoice.id, type(e).__name__, str(e.args))
             raise UserError(_('Error preparing invoice data: %s') % str(e))
 
     def build_xml_to_print(self, invoice, type_document):

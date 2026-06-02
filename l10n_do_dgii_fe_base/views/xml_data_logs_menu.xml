@@ -1,14 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-
-        <!-- Custom tree view for account.move with itx.xml.data.dgii related fields -->
         <record id="view_account_move_dgii_tree" model="ir.ui.view">
             <field name="name">account.move.dgii.tree</field>
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <tree>
+                    <field name="state" invisible="1"/>
                     <field name="name"/>
-                    <!-- <field name="l10n_latam_document_number"/> -->
                     <field name="journal_id"/>
                     <field name="partner_id"/>
                     <field name="invoice_date"/>
@@ -20,24 +19,14 @@
                 </tree>
             </field>
         </record>
-
-        <!-- Update the action to use the new tree view -->
         <record id="action_account_move_dgii" model="ir.actions.act_window">
-            <field name="name">Electronic Invoices (DGII)</field>
+            <field name="name">Electronic Invoices (DGII)
+            </field>
             <field name="res_model">account.move</field>
             <field name="view_mode">tree,form</field>
             <field name="view_id" ref="view_account_move_dgii_tree"/>
-            <field name="domain">[("journal_id.is_dgii", "=", True), ("is_ecf_invoice", "=", True)]</field>
+            <field name="domain">[("is_dgii", "=", True), ("is_ecf_invoice", "=", True), ("state", "=", "posted")]</field>
         </record>
-
-        <!-- Update the Electronic Invoices menu to use the new action -->
-        <menuitem
-            name="Electronic Invoices"
-            id="l10n_do_dgii_fe_base.menu_fe_dgii_invoices"
-            sequence="5"
-            parent="l10n_do_dgii_fe_base.menu_root"
-            action="action_account_move_dgii"
-        />
-
+        <menuitem name="Electronic Invoices" id="l10n_do_dgii_fe_base.menu_fe_dgii_invoices" sequence="5" parent="l10n_do_dgii_fe_base.menu_root" action="action_account_move_dgii"/>
     </data>
 </odoo>

@@ -36,18 +36,8 @@ class AccountMove(models.Model):
             ("5", _("05 - Referencia a Factura Electrónica de Consumidor Final")),
         ]
 
-    @api.depends(
-        "journal_id",
-        "l10n_latam_use_documents",
-        "state",
-        "l10n_latam_document_type_id",
-        "invoice_date", "move_type",
-    )
-    def _is_manual_document_number(self):
-        result = super()._is_manual_document_number()
-        if self.l10n_latam_document_type_id and self.l10n_latam_document_type_id.l10n_do_ncf_type in ("e-credit_note", "e-debit_note"):
-            return False
-        return result
+    def _is_manual_document_number(self, journal):
+        return super()._is_manual_document_number(journal)
 
     def _compute_l10n_do_fiscal_sequence(self):
         super()._compute_l10n_do_fiscal_sequence()

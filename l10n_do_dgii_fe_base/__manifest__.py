@@ -7,14 +7,14 @@
     'license': "OPL-1",
     'support': "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "15.0.1.0.13",
+    'version': "15.0.0.0",
     'installable': True,
     'application': False,
     'auto_install': False,
 
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'contacts', 'account', 'l10n_do', 'l10n_latam_base'],
+    'depends': ['base', 'contacts', 'account', 'l10n_do'],
 
     # always loaded
    'data': [

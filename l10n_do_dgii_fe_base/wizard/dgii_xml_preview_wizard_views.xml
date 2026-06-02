@@ -1,31 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Wizard Form View -->
         <record id="view_dgii_xml_preview_wizard_form" model="ir.ui.view">
             <field name="name">dgii.xml.preview.wizard.form</field>
             <field name="model">dgii.xml.preview.wizard</field>
             <field name="arch" type="xml">
                 <form string="Vista Previa XML DGII">
                     <sheet>
-                        <!-- Header with status -->
                         <div class="oe_title">
                             <h1>
                                 <field name="status_message" readonly="1" class="oe_inline"/>
                             </h1>
                         </div>
-
-                        <!-- Validation Status Banner -->
                         <div class="alert alert-success" role="alert" invisible="not xml_valid">
                             <strong>XML Valido!</strong> El documento cumple con el esquema XSD de DGII.
                         </div>
-
                         <div class="alert alert-danger" role="alert" invisible="xml_valid">
                             <strong>XML Invalido</strong> Se encontraron errores de validacion.
                             <field name="validation_errors_count" readonly="1" class="badge badge-danger ml-2"/>
                         </div>
-
-                        <!-- Main Content -->
                         <group>
                             <group>
                                 <field name="invoice_id" readonly="1"/>
@@ -36,53 +29,23 @@
                                 <field name="can_send" invisible="1"/>
                             </group>
                         </group>
-
-                        <!-- XML Content -->
                         <notebook>
                             <page string="XML Generado">
-                                <field name="xml_content"
-                                       readonly="1"
-                                       widget="ace"
-                                       options="{'mode': 'xml', 'theme': 'monokai'}"
-                                       nolabel="1"
-                                       height="400"/>
+                                <field name="xml_content" readonly="1" widget="ace" options="{'mode': 'xml', 'theme': 'monokai'}" nolabel="1" height="400"/>
                             </page>
-
-                            <page string="Errores de Validacion"
-                                  invisible="validation_errors_count == 0">
-                                <field name="validation_errors"
-                                       readonly="1"
-                                       widget="ace"
-                                       options="{'mode': 'json', 'theme': 'monokai'}"
-                                       nolabel="1"
-                                       height="400"/>
+                            <page string="Errores de Validacion" invisible="validation_errors_count == 0">
+                                <field name="validation_errors" readonly="1" widget="ace" options="{'mode': 'json', 'theme': 'monokai'}" nolabel="1" height="400"/>
                             </page>
                         </notebook>
                     </sheet>
-
-                    <!-- Footer Buttons -->
                     <footer>
-                        <button name="action_send_to_dgii"
-                                string="Enviar a DGII"
-                                type="object"
-                                class="btn-primary"
-                                invisible="not can_send"/>
-
-                        <button name="action_download_xml"
-                                string="Descargar XML"
-                                type="object"
-                                class="btn-secondary"/>
-
-                        <button name="action_close"
-                                string="Cerrar"
-                                type="object"
-                                class="btn-secondary"/>
+                        <button name="action_send_to_dgii" string="Enviar a DGII" type="object" class="btn-primary" invisible="not can_send"/>
+                        <button name="action_download_xml" string="Descargar XML" type="object" class="btn-secondary"/>
+                        <button name="action_close" string="Cerrar" type="object" class="btn-secondary"/>
                     </footer>
                 </form>
             </field>
         </record>
-
-        <!-- Action to open wizard -->
         <record id="action_dgii_xml_preview_wizard" model="ir.actions.act_window">
             <field name="name">Vista Previa XML DGII</field>
             <field name="res_model">dgii.xml.preview.wizard</field>

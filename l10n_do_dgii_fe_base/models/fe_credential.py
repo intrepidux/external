@@ -207,7 +207,7 @@ class ItxFeDgii(models.Model):
             'allow_inbound_fe': self.allow_inbound_fe,
             'allow_inbound_auth': self.allow_inbound_auth,
         }
-        if cert_b64 and self.certificate_password:
+        if self.dgii_client_mode == 'prod' and cert_b64 and self.certificate_password:
             payload['certificate_b64'] = cert_b64
             payload['certificate_password'] = self.certificate_password
         return payload
@@ -300,9 +300,11 @@ class ItxFeDgii(models.Model):
 
     def _use_legacy_cert_in_request(self):
         self.ensure_one()
+        if self.dgii_client_mode == 'test':
+            return False
         if self.cert_storage_mode == 'local_legacy':
             return True
-        if self.dgii_client_mode == 'test' and self.api_sync_state != 'synced':
+        if self.api_sync_state != 'synced':
             return True
         return False
 
@@ -330,7 +332,16 @@ class ItxFeDgii(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        watch = {'certificate_file', 'certificate_password', 'dgii_environment', 'allow_inbound_fe', 'allow_inbound_auth'}
+        cert_watch = {'certificate_file', 'certificate_password'}
+        watch = {'dgii_environment', 'allow_inbound_fe', 'allow_inbound_auth'}
+        # In test mode, certificate changes don't affect sync state
+        if cert_watch.intersection(vals.keys()):
+            self.filtered(
+                lambda r: r.api_sync_state == 'synced' and r.dgii_client_mode == 'prod'
+            ).write({
+                'api_sync_state': 'out_of_sync',
+                'api_sync_message': _('Certificado o configuración cambiaron; sincronice de nuevo.'),
+            })
         if watch.intersection(vals.keys()):
             self.filtered(lambda r: r.api_sync_state == 'synced').write({
                 'api_sync_state': 'out_of_sync',
@@ -432,6 +443,19 @@ class ItxFeDgii(models.Model):
         _logger.debug("Entering action_validate_certificate.")
         _logger.debug("Certificate file exists: %s, password exists: %s, filename: %s",
                       bool(self.certificate_file), bool(self.certificate_password), self.certificate_filename)
+
+        # En modo test el certificado no se utiliza ni valida
+        if self.dgii_client_mode == 'test':
+            _logger.debug("Test mode: certificate validation skipped.")
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Modo Prueba',
+                    'message': 'En modo Test el certificado digital no es requerido ni se valida.',
+                    'type': 'info',
+                }
+            }
 
         use_remote_cert = (
             self.api_sync_state == 'synced'

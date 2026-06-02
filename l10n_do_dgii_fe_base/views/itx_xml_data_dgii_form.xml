@@ -19,13 +19,12 @@
                         </group>
                         <notebook>
                             <page string="XML (borrador / enviado)">
-                                <field name="xml_data" widget="text" nolabel="1" readonly="1"
-                                       placeholder="Sin XML aún — use «Vista previa XML / XSD» en la factura o reconstruya."/>
+                                <field name="xml_data" widget="text" nolabel="1" readonly="1" placeholder="Sin XML aún — use «Vista previa XML / XSD» en la factura o reconstruya."/>
                             </page>
-                            <page string="XML firmado" invisible="not signed_xml">
+                             <page string="XML firmado" attrs="{'invisible':[('signed_xml','=',False)]}">
                                 <field name="signed_xml" widget="text" nolabel="1" readonly="1"/>
                             </page>
-                            <page string="Error DGII" invisible="not dgi_err_msg">
+                             <page string="Error DGII" attrs="{'invisible':[('dgi_err_msg','=',False)]}">
                                 <field name="dgi_err_msg" nolabel="1" readonly="1"/>
                             </page>
                         </notebook>

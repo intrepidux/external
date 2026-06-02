@@ -7,7 +7,6 @@
             <field name="res_model">itx.xml.data.dgii</field>
             <field name="view_mode">tree,form</field>
         </record>
-
         <!-- Root Menu for DGII - App Level (appears in main menu) -->
         <menuitem
             name="DGII"
@@ -15,7 +14,6 @@
             sequence="50"
             web_icon="l10n_do_dgii_fe_base,static/description/icon.png"
         />
-
         <!-- First level menu: Credentials -->
         <menuitem
             name="Credentials"
@@ -24,7 +22,6 @@
             parent="l10n_do_dgii_fe_base.menu_root"
             action="action_itx_fe_dgii"
         />
-
         <!-- Second level: XML Documents -->
         <menuitem
             name="XML Documents"
@@ -33,6 +30,5 @@
             parent="l10n_do_dgii_fe_base.menu_root"
             action="action_itx_xml_data_dgii"
         />
-
     </data>
 </odoo>

@@ -1092,7 +1092,6 @@ class AccountMove(models.Model):
             _logger.debug("Preparing invoice lines data for invoice %s", invoice.id)
             lines_data = []
             product_lines = invoice.invoice_line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_note'))
-)
             _logger.info("Found %d product lines in invoice %s", len(product_lines), invoice.id)
             
             for line in product_lines:
@@ -1580,7 +1579,7 @@ class AccountMoveLine(models.Model):
         for line in self:
             # Only validate for DGII journals and when invoice is posted or being posted
             if (line.tax_ids and line.move_id and line.move_id.journal_id.is_dgii and
-                line.move_id.state in ['posted', 'draft'] and line.display_type not in ('line_section', 'line_note'):
+                line.move_id.state in ['posted', 'draft'] and line.display_type not in ('line_section', 'line_note')):
                 # Group taxes by tax_group_id
                 tax_groups = {}
                 for tax in line.tax_ids:

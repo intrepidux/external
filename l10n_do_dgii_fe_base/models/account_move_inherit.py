@@ -312,6 +312,8 @@ class AccountMove(models.Model):
         elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
             original_invoice = invoice.debit_origin_id
 
+            
+
         if not original_invoice:
             origin_ncf = (getattr(invoice, 'l10n_do_origin_ncf', None) or '').strip()
             if origin_ncf:
@@ -350,7 +352,7 @@ class AccountMove(models.Model):
 
         # Ítems facturables solamente: ``line_section`` / ``line_note`` (secciones y notas)
         # no son DetallesItems e-CF; no validar ni enviar como líneas DGII.
-        product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
+        product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_note'))
 
         # Etiqueta (line.name) obligatoria: XSD NombreItem AlfNum80Type minLength 1; no usar placeholder.
         for line in product_lines:
@@ -885,7 +887,7 @@ class AccountMove(models.Model):
 
         is_refund = inv.move_type in ('out_refund', 'in_refund')
         # Solo ítems de producto/servicio (no secciones ni notas de línea).
-        for line in inv.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
+        for line in inv.invoice_line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_note')):
             if not line.tax_ids:
                 continue
             nf_line = any(getattr(t, 'tipo_impuesto_dgii', None) == '4' for t in line.tax_ids)
@@ -1089,7 +1091,8 @@ class AccountMove(models.Model):
             # impuesto es price_include en el maestro).
             _logger.debug("Preparing invoice lines data for invoice %s", invoice.id)
             lines_data = []
-            product_lines = invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
+            product_lines = invoice.invoice_line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_note'))
+)
             _logger.info("Found %d product lines in invoice %s", len(product_lines), invoice.id)
             
             for line in product_lines:
@@ -1136,7 +1139,7 @@ class AccountMove(models.Model):
                     'product_id': {
                         'name': line.product_id.name or '',
                         'default_code': line.product_id.default_code or False,
-                        'detailed_type': line.product_id.detailed_type or False,
+                        'detailed_type': getattr(line.product_id,'detailed_type',line.product_id.type) or False,
                     },
                     **(
                         {'dgii_indicador_facturacion': line.dgii_indicador_facturacion}
@@ -1242,9 +1245,9 @@ class AccountMove(models.Model):
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,
-                'invoice_payments_widget': getattr(invoice, 'invoice_payments_widget', None),
+                'invoice_payments_widget': getattr(invoice,'invoice_payments_widget',False),
                 'reversed_entry_id': invoice.reversed_entry_id.id if invoice.reversed_entry_id else None,
-                'debit_origin_id': invoice.debit_origin_id.id if invoice.debit_origin_id else None,
+                'debit_origin_id': getattr(invoice,'debit_origin_id',False).id if getattr(invoice, 'debit_origin_id', False) else None,
                 'lines': lines_data,
                 'amount_total': float(invoice.amount_total or 0.0),
                 'amount_untaxed': float(invoice.amount_untaxed or 0.0),
@@ -1577,7 +1580,7 @@ class AccountMoveLine(models.Model):
         for line in self:
             # Only validate for DGII journals and when invoice is posted or being posted
             if (line.tax_ids and line.move_id and line.move_id.journal_id.is_dgii and
-                line.move_id.state in ['posted', 'draft'] and line.display_type == 'product'):
+                line.move_id.state in ['posted', 'draft'] and line.display_type not in ('line_section', 'line_note'):
                 # Group taxes by tax_group_id
                 tax_groups = {}
                 for tax in line.tax_ids:

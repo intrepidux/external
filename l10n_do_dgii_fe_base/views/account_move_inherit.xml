@@ -99,8 +99,9 @@ action = records.action_manual_resend_dgii()
                 <xpath expr="//group[@id='header_left_group']" position="inside">
                     <!-- Removed direct reference to is_ecf_invoice to avoid undefined field errors -->
                      <!-- Visibility based on journal's is_dgii field is not directly supported; hide field by default -->
-                    <field name="itx_dgii_dgi_status" invisible="1"/>
-                    <field name="l10n_do_ecf_sign_date" invisible="1"/>
+                     <field name="is_dgii" invisible="1" />
+                    <field name="itx_dgii_dgi_status" attrs="{'invisible': [('is_dgii', '=', False)]}"/>
+                    <field name="l10n_do_ecf_sign_date" attrs="{'invisible': [('is_dgii', '=', False)]}"/>
                 </xpath>
 
             </field>

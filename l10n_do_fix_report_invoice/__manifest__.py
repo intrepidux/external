@@ -1,5 +1,5 @@
 {
-    'name': 'L10n Do Fix Report Invoice, indexa',
+    'name': 'L10n Do Fix Report Invoice, Yasmany',
     'author': "Intrepidux SRL, David Contreras",
     'website': "http://www.intrepidux.com",
     "license": "OPL-1",

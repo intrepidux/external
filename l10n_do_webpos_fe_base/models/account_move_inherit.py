@@ -4,6 +4,7 @@ import io
 import os
 import requests
 import json
+from urllib.parse import quote
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 

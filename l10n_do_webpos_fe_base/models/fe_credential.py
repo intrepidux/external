@@ -1,6 +1,7 @@
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 import logging
+import requests
 
 _logger = logging.getLogger(__name__)
 
@@ -17,6 +18,28 @@ class IntrepiduxFacturacionElectronica(models.Model):
     # xml_data_ids = fields.One2many('my.xml.data', 'fiscal_printer_id', string='XML creation Logs')
     company_id = fields.Many2one('res.company', string='Company', required=True, default=lambda self: self.env.company)
     active = fields.Boolean(string='Activo', default=False)
+
+    def action_get_public_ip(self):
+        self.ensure_one()
+
+        response = requests.get(
+            "https://api.ipify.org?format=json",
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        ip = response.json().get("ip")
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'IP Pública Detectada',
+                'message': ip,
+                'sticky': True,
+                'type': 'success',
+            }
+        }
 
     @api.constrains('company_id', 'active')
     def _check_unique_active_per_company(self):

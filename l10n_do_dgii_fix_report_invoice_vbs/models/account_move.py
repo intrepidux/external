@@ -1,59 +1,86 @@
 # -*- coding: utf-8 -*-
 
-from odoo import fields, models, api, _
-import logging
-
-_logger = logging.getLogger(__name__)
+from odoo import api, models, _
+from odoo.exceptions import ValidationError
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    # Alias para el reporte l10n_do_accounting (usa l10n_do_electronic_stamp en QWeb).
-    l10n_do_electronic_stamp = fields.Char(
-        related="itx_dgii_electronic_stamp",
-        string="Electronic Stamp (DGII QR)",
-        readonly=True,
-    )
+    def _is_manual_document_number(self):
+        """Override: retorna False para ECF (usa _is_l10n_do_dgii_allowed_document de l10n_do_dgii_fe_base).
 
-    def _l10n_do_ecf_document_type(self, ncf_type):
-        return self.env["l10n_latam.document.type"].search([
-            ("country_id.code", "=", "DO"),
-            ("code", "=", "E"),
-            ("l10n_do_ncf_type", "=", ncf_type),
-        ], limit=1)
+        El módulo l10n_do_dgii_fe_base ya tiene el mapping exacto de tipos E-CF
+        (E_CF_VENTAS, E_CF_COMPRAS, E_CF_AJUSTES) y el método
+        _is_l10n_do_dgii_allowed_document() para validar documentos ECF por flujo.
+        """
+        if self._is_l10n_do_dgii_allowed_document():
+            return False
+        return super()._is_manual_document_number()
 
-    def _reverse_move_vals(self, default_values, cancel=True):
-        res = super()._reverse_move_vals(default_values=default_values, cancel=cancel)
-        if self.l10n_latam_country_code == "DO" and self.is_ecf_invoice and self.move_type == "out_invoice":
-            document_type = self._l10n_do_ecf_document_type("e-credit_note")
-            if document_type:
-                res["l10n_latam_document_type_id"] = document_type.id
-        return res
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if not vals.get("is_ecf_invoice") or not vals.get("journal_id") or not vals.get("move_type"):
-                continue
-
-            journal = self.env["account.journal"].browse(vals["journal_id"])
-            if not journal.l10n_latam_use_documents:
-                continue
-
-            document_type = False
-            if vals["move_type"] in ("out_refund", "in_refund"):
-                document_type = self.env.ref(
-                    "l10n_do_dgii_fix_report_invoice_vbs.ecf_credit_note_client",
-                    raise_if_not_found=False,
+    def _check_l10n_latam_documents(self):
+        """Override to include electronic NCF types (e-informal, e-minor, etc.) 
+        in the validation, since base l10n_do_accounting only allows 
+        ['minor', 'informal', 'exterior', False] but mode 'e' uses e-* variants.
+        """
+        validated_invoices = self.filtered(
+            lambda x: x.l10n_latam_use_documents and x.state == "posted"
+        )
+        without_doc_type = validated_invoices.filtered(
+            lambda x: not x.l10n_latam_document_type_id
+        )
+        if without_doc_type:
+            raise ValidationError(
+                _(
+                    "The journal require a document type but not document type "
+                    "has been selected on invoices %s.",
+                    without_doc_type.ids,
                 )
-            elif vals.get("is_debit_note") and vals["move_type"] in ("out_invoice", "in_invoice"):
-                document_type = self.env.ref(
-                    "l10n_do_dgii_fix_report_invoice_vbs.ecf_debit_note_client",
-                    raise_if_not_found=False,
+            )
+
+        without_number = validated_invoices.filtered(
+            lambda x: not x.l10n_latam_document_number
+            and x.l10n_latam_manual_document_number
+        )
+
+        # Allow all e-* electronic NCF types in addition to base types
+        allowed_types = [
+            "minor",
+            "informal",
+            "exterior",
+            False,
+            "e-minor",
+            "e-informal",
+            "e-exterior",
+            "e-fiscal",
+            "e-consumer",
+            "e-special",
+            "e-governmental",
+            "e-export",
+            "e-debit_note",
+            "e-credit_note",
+        ]
+
+        if validated_invoices.l10n_ncf_type_name:
+            if (
+                without_number
+                and self.l10n_ncf_type_name in ["minor", "e-minor"]
+                and self.journal_id.l10n_latam_use_documents
+                and self.partner_id.vat != self.env.company.vat
+            ):
+                raise ValidationError(
+                    _(
+                        "Minor expenses VAT must be the same as the company "
+                        "reporting them."
+                    )
                 )
 
-            if document_type:
-                vals["l10n_latam_document_type_id"] = document_type.id
+        if validated_invoices.l10n_ncf_type_name not in allowed_types:
+            raise ValidationError(
+                _(
+                    "Please set the document number on the following invoices %s.",
+                    without_number.ids,
+                )
+            )
 
-        return super().create(vals_list)
+        return super(AccountMove, self)._check_l10n_latam_documents()

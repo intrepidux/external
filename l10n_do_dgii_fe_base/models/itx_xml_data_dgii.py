@@ -253,11 +253,11 @@ class ItxXMLDataDGII(models.Model):
     # Field for binary download
     xml_file_binary = fields.Binary(string="XML File", compute='_compute_xml_file_binary', store=False)
 
-    @api.depends('xml_data')
+    @api.depends('signed_xml')
     def _compute_xml_file_binary(self):
         for record in self:
-            if record.xml_data:
-                record.xml_file_binary = base64.b64encode(record.xml_data.encode('utf-8'))
+            if record.signed_xml:
+                record.xml_file_binary = base64.b64encode(record.signed_xml.encode('utf-8'))
             else:
                 record.xml_file_binary = False
 
@@ -1250,6 +1250,7 @@ class ItxXMLDataDGII(models.Model):
         xml_content, xml_name = invoice.build_xml_to_print(invoice, type_document)
         if xml_content:
             self.xml_data = xml_content
+            self.name = xml_name
             _logger.info(
                 "XML reconstruido | itx_id=%s invoice=%s archivo=%s len=%s",
                 self.id,

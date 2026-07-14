@@ -214,12 +214,9 @@ class AccountMove(models.Model):
         ], limit=1)
         
         if not xml_data_record:
-            xml_data_record = self.env['itx.xml.data.dgii'].create({
-                'name': self.name,
-                'account_move_id': self.id,
-                'company_id': self.company_id.id,
-                'status': 'pending',
-            })
+            doc_type = self.doc_type_E(self)
+            xml_content, xml_name = self.build_xml_to_print(self, doc_type)
+            xml_data_record = self.create_xml_data(self, xml_content, xml_name)
         
         # Call send method
         xml_data_record.save_and_send_xml()

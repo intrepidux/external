@@ -1,5 +1,5 @@
 {
-    'name': 'L10n Do dgii fix report invoice AN',
+    'name': 'L10n Do dgii fix report invoice VBS',
     'version': '1.3',
     'depends': [
         'account',
@@ -15,4 +15,5 @@
         # 'wizard/account_move_reversal_inherit_views.xml',
 
     ],
+    'post_init_hook': 'post_init_hook',
 }

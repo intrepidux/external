@@ -490,11 +490,11 @@ class AccountMove(models.Model):
 
 
     @api.model
-    def create_xml_data(self, invoice, xml_content):
+    def create_xml_data(self, invoice, xml_content, xml_name):
         # Crear un nuevo registro en itx.xml.data.dgii
         xml_data = self.env['itx.xml.data.dgii'].create({
-            'name': invoice.l10n_latam_document_number,
-            'xml_data': xml_content, 
+            'name': xml_name,
+            'xml_data': xml_content,
             'account_move_id': invoice.id,  # Asocia el XML con la factura
             'status': 'pending',  # Establece el estado inicial
         })
@@ -559,7 +559,7 @@ class AccountMove(models.Model):
             xml_content, xml_name = invoice.build_xml_to_print(invoice, doc_type)
             xml_data = xml_content
             try:
-                execute_EF = invoice.create_xml_data(invoice, xml_data)
+                execute_EF = invoice.create_xml_data(invoice, xml_data, xml_name)
                 # Las validaciones duplicadas aquí se eliminan ya que _validate_dgii_invoice() las maneja
                 execute_EF.save_and_send_xml()
                 # Only verify with DGII if the submit succeeded and a track_id is available.
@@ -586,7 +586,7 @@ class AccountMove(models.Model):
                         }
                     )
                     if invoice.itx_xml_data_id:
-                        invoice.itx_xml_data_id.name = document_number
+                        invoice.itx_xml_data_id.name = f'{doc_type}_{document_number}.xml'
             except Exception as e:
                 raise UserError(
                     _("Error al crear el documento Electronico: %s") % str(e)
@@ -1379,13 +1379,7 @@ class AccountMove(models.Model):
             doc_type = self.doc_type_E(self) # Pass the invoice object
             _logger.info("EX444 0 doctype rebuild %s", doc_type)
             xml_content, xml_name = self.build_xml_to_print(self, doc_type)  # Genera el contenido XML
-            xml_data = self.env['itx.xml.data.dgii'].create({
-                'name': self.l10n_latam_document_number,  # O el campo que desees usar
-                'xml_data': xml_content,
-                'account_move_id': self.id,  # Asocia el XML con la factura
-                'status': 'pending',  # Establece el estado inicial
-            })
-            self.itx_xml_data_id = xml_data.id  # Asigna el nuevo registro al campo itx_xml_data_id
+            self.create_xml_data(self, xml_content, xml_name)
         
         self.itx_xml_data_id.rebuild_xml_to_send()
 
@@ -1430,13 +1424,7 @@ class AccountMove(models.Model):
                 doc_type = self.doc_type_E(self)
                 xml_content, xml_name = self.build_xml_to_print(self, doc_type)
 
-                xml_data = self.env['itx.xml.data.dgii'].create({
-                    'name': self.l10n_latam_document_number,
-                    'xml_data': xml_content,
-                    'account_move_id': self.id,
-                    'status': 'pending',
-                })
-                self.itx_xml_data_id = xml_data.id
+                self.create_xml_data(self, xml_content, xml_name)
             else:
                 _logger.info("Using existing XML data for manual DGII resend of invoice %s", self.id)
 

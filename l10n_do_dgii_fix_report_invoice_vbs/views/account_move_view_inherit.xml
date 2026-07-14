@@ -10,7 +10,7 @@
         <xpath expr="//field[@name='l10n_latam_document_number']" position="replace">
             <field name="l10n_latam_document_number"
                 string="Numero de Comprobante"
-                required="l10n_latam_manual_document_number and l10n_latam_use_documents"
+                required="l10n_latam_manual_document_number and l10n_latam_use_documents and l10n_ncf_type_name not in ('e-informal', 'e-minor', 'e-exterior', 'e-fiscal', 'e-consumer', 'e-special', 'e-governmental', 'e-export')"
                 invisible="not l10n_latam_use_documents or (state == 'draft' and not l10n_latam_manual_document_number) or l10n_latam_country_code != 'DO'"
                 readonly="state != 'draft'"/>
         </xpath>

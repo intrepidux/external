@@ -586,7 +586,10 @@ class AccountMove(models.Model):
                         }
                     )
                     if invoice.itx_xml_data_id:
-                        invoice.itx_xml_data_id.name = f'{doc_type}_{document_number}.xml'
+                        from .itx_xml_data_dgii import ensure_xml_filename
+                        invoice.itx_xml_data_id.name = ensure_xml_filename(
+                            f'{doc_type}_{document_number}.xml'
+                        )
             except Exception as e:
                 raise UserError(
                     _("Error al crear el documento Electronico: %s") % str(e)
@@ -805,12 +808,45 @@ class AccountMove(models.Model):
                 effective |= tax
         return effective
 
+    @api.model
+    def _dgii_normalize_codigo_tabla_impuesto(self, tax, tg_u=None):
+        """Código XSD TablaImpuestoAdicional (001–039) desde maestro o grupo Propina."""
+        cod = (getattr(tax, 'dgii_codigo_tabla_impuesto', None) or '').strip()
+        tg = (tg_u or '').upper()
+        if not tg and tax.tax_group_id:
+            tg = (tax.tax_group_id.name or '').upper()
+        if not cod and 'PROPINA' in tg:
+            cod = '001'
+        if not cod:
+            return None
+        if cod.isdigit():
+            cod = cod.zfill(3)
+            if 1 <= int(cod) <= 39:
+                return cod
+        return None
+
+    @api.model
+    def _dgii_impuesto_adicional_xml_bucket(self, cod_tabla, tax):
+        """Bucket XML en totales: otros (001–005), ISC advalorem (%), ISC específico (fijo)."""
+        try:
+            ni = int(str(cod_tabla).strip())
+        except (TypeError, ValueError):
+            return 'otros'
+        if 1 <= ni <= 5:
+            return 'otros'
+        if 6 <= ni <= 39:
+            if tax.amount_type == 'fixed':
+                return 'especifico'
+            if tax.amount_type == 'percent':
+                return 'advalorem'
+        return 'otros'
+
     def _prepare_tax_summary_for_dgii_api(self, invoice=None):
         """Totales impositivos e-CF desde Odoo (``tax_ids.compute_all``), estilo l10n_do_ecf_invoicing.
 
         Contrato enviado en ``invoice_data['tax_summary']`` para la API/plantillas (opción C: Odoo es la fuente).
         Claves: base_18, itbis_18, base_16, itbis_16, base_0, itbis_0, exento, total_itbis,
-        itbis_retenido, isr_retenido, impuestos_adicionales (lista; reservado / vacío si no aplica).
+        itbis_retenido, isr_retenido, impuestos_adicionales (001–039 vía ``dgii_codigo_tabla_impuesto``).
         """
         inv = invoice or self
         inv.ensure_one()
@@ -833,9 +869,8 @@ class AccountMove(models.Model):
             'isr_retenido': 0.0,
             'impuestos_adicionales': [],
         }
-        # Propina Legal e-CF: XSD ``TipoImpuesto`` 001 si el grupo lleva «Propina»
-        # en el nombre (no hace falta ``tipo_impuesto_dgii`` en el maestro si el grupo coincide).
-        propina_additional = {}
+        # Impuestos adicionales e-CF (001–039): ``dgii_codigo_tabla_impuesto`` o grupo «Propina» → 001.
+        additional_taxes = {}
 
         is_refund = inv.move_type in ('out_refund', 'in_refund')
         # Solo ítems de producto/servicio (no secciones ni notas de línea).
@@ -890,14 +925,21 @@ class AccountMove(models.Model):
                 elif tax_id.amount == 0 and is_e46 and 'ITBIS' in tg_u:
                     summary['base_0'] += base
                     summary['itbis_0'] += amt
-                elif 'PROPINA' in tg_u and float(tax_id.amount or 0) >= 0:
-                    rk = '%.10g' % float_round(float(tax_id.amount or 0.0), precision_digits=6)
-                    if rk not in propina_additional:
-                        propina_additional[rk] = {
-                            'tasa': float(tax_id.amount or 0.0),
-                            'monto': 0.0,
-                        }
-                    propina_additional[rk]['monto'] += float(amt)
+                else:
+                    cod_tabla = self._dgii_normalize_codigo_tabla_impuesto(tax_id, tg_u)
+                    if cod_tabla and float(tax_id.amount or 0) >= 0:
+                        tasa = float(tax_id.amount or 0.0)
+                        rk = (cod_tabla, float_round(tasa, precision_digits=6))
+                        if rk not in additional_taxes:
+                            additional_taxes[rk] = {
+                                'tipo': cod_tabla,
+                                'tasa': tasa,
+                                'especifico': 0.0,
+                                'advalorem': 0.0,
+                                'otros': 0.0,
+                            }
+                        bucket = self._dgii_impuesto_adicional_xml_bucket(cod_tabla, tax_id)
+                        additional_taxes[rk][bucket] += float(amt)
 
             if nf_line:
                 summary['monto_no_facturable'] += float_round(
@@ -910,17 +952,29 @@ class AccountMove(models.Model):
 
         summary['total_itbis'] = summary['itbis_18'] + summary['itbis_16'] + summary['itbis_0']
 
-        for rk in sorted(propina_additional.keys(), key=lambda k: propina_additional[k]['tasa']):
-            pdata = propina_additional[rk]
-            rm = float_round(pdata['monto'], precision_digits=prec)
-            if float_is_zero(rm, precision_rounding=prec):
-                continue
-            summary['impuestos_adicionales'].append({
-                'tipo': '001',
+        for rk in sorted(additional_taxes.keys(), key=lambda k: (k[0], k[1])):
+            pdata = additional_taxes[rk]
+            row = {
+                'tipo': pdata['tipo'],
                 'tasa': pdata['tasa'],
-                'monto': rm,
-                'otros_impuestos': rm,
-            })
+            }
+            total = 0.0
+            if pdata['especifico']:
+                v = float_round(pdata['especifico'], precision_digits=prec)
+                row['monto_isc_especifico'] = v
+                total += v
+            if pdata['advalorem']:
+                v = float_round(pdata['advalorem'], precision_digits=prec)
+                row['monto_isc_advalorem'] = v
+                total += v
+            if pdata['otros']:
+                v = float_round(pdata['otros'], precision_digits=prec)
+                row['otros_impuestos'] = v
+                total += v
+            if float_is_zero(total, precision_rounding=prec):
+                continue
+            row['monto'] = float_round(total, precision_digits=prec)
+            summary['impuestos_adicionales'].append(row)
 
         for key in (
             'base_18', 'itbis_18', 'base_16', 'itbis_16', 'base_0', 'itbis_0',
@@ -1272,7 +1326,10 @@ class AccountMove(models.Model):
 
             # Compat: respuestas sin 'success' explícito pero con xml_content
             xml_content = res.get('xml_content') or ''
-            xml_name = res.get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
+            from .itx_xml_data_dgii import ensure_xml_filename
+            xml_name = ensure_xml_filename(
+                res.get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
+            )
 
             # Additional validation of XML content
             if not xml_content:

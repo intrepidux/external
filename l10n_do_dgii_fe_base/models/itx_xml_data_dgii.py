@@ -17,6 +17,19 @@ ICP_QR_LOCAL_FALLBACK = 'l10n_do_dgii_fe_base.qr_local_fallback'
 ICP_DEBUG_REPORT_QR = 'l10n_do_dgii_fe_base.debug_report_qr'
 
 
+def ensure_xml_filename(filename):
+    """Garantiza extensión .xml para descargas (evita que Odoo agregue .xsl vía mimetypes)."""
+    name = (filename or '').strip()
+    if not name:
+        return 'document.xml'
+    lower = name.lower()
+    if lower.endswith('.xml'):
+        return name
+    if lower.endswith('.xsl'):
+        return f'{name[:-4]}.xml'
+    return f'{name}.xml'
+
+
 def dgii_security_code_from_signed_xml_string(signed_xml):
     """Ver mismo nombre en ``itx_dgii_api.models.dgii_signer`` (RFCE: CodigoSeguridadeCF; ECF: SignatureValue)."""
     if not signed_xml or not isinstance(signed_xml, str):
@@ -226,6 +239,18 @@ def dgii_estado_classification(label):
 class ItxXMLDataDGII(models.Model):
     _name = 'itx.xml.data.dgii'
     _description = 'Maneja el procesamiento de documento XML para DGII'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name'):
+                vals['name'] = ensure_xml_filename(vals['name'])
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if vals.get('name'):
+            vals['name'] = ensure_xml_filename(vals['name'])
+        return super().write(vals)
     
     _prefijo_factura = 'F'
     _prefijo_nota_credito = 'C'
@@ -1250,7 +1275,7 @@ class ItxXMLDataDGII(models.Model):
         xml_content, xml_name = invoice.build_xml_to_print(invoice, type_document)
         if xml_content:
             self.xml_data = xml_content
-            self.name = xml_name
+            self.name = ensure_xml_filename(xml_name)
             _logger.info(
                 "XML reconstruido | itx_id=%s invoice=%s archivo=%s len=%s",
                 self.id,

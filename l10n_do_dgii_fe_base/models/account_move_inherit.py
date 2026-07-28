@@ -853,12 +853,39 @@ class AccountMove(models.Model):
                 effective |= tax
         return effective
 
+    @api.model
+    def _dgii_normalize_codigo_tabla_impuesto(self, tax, tg_u=None):
+        """Código XSD TablaImpuestoAdicional (001–039) o None si no aplica."""
+        cod = (getattr(tax, 'dgii_codigo_tabla_impuesto', None) or '').strip()
+        if cod and len(cod) == 3 and cod.isdigit():
+            ni = int(cod)
+            if 1 <= ni <= 39:
+                return '%03d' % ni
+        if tg_u is None:
+            tg = (tax.tax_group_id.name or '') if tax.tax_group_id else ''
+            tg_u = tg.upper()
+        if 'PROPINA' in tg_u:
+            return '001'
+        return None
+
+    @api.model
+    def _dgii_impuesto_adicional_xml_bucket(self, cod_tabla, tax):
+        """Bucket XML Totales para un impuesto adicional: otros, advalorem o especifico."""
+        ni = int(cod_tabla)
+        if 1 <= ni <= 5:
+            return 'otros'
+        if 6 <= ni <= 39:
+            if tax.amount_type == 'fixed':
+                return 'especifico'
+            return 'advalorem'
+        return 'otros'
+
     def _prepare_tax_summary_for_dgii_api(self, invoice=None):
         """Totales impositivos e-CF desde Odoo (``tax_ids.compute_all``), estilo l10n_do_ecf_invoicing.
 
         Contrato enviado en ``invoice_data['tax_summary']`` para la API/plantillas (opción C: Odoo es la fuente).
         Claves: base_18, itbis_18, base_16, itbis_16, base_0, itbis_0, exento, total_itbis,
-        itbis_retenido, isr_retenido, impuestos_adicionales (lista; reservado / vacío si no aplica).
+        itbis_retenido, isr_retenido, impuestos_adicionales (lista TablaImpuestoAdicional 001–039).
         """
         inv = invoice or self
         inv.ensure_one()
@@ -881,9 +908,8 @@ class AccountMove(models.Model):
             'isr_retenido': 0.0,
             'impuestos_adicionales': [],
         }
-        # Propina Legal e-CF: XSD ``TipoImpuesto`` 001 si el grupo lleva «Propina»
-        # en el nombre (no hace falta ``tipo_impuesto_dgii`` en el maestro si el grupo coincide).
-        propina_additional = {}
+        # Impuestos adicionales e-CF (TablaImpuestoAdicional 001–039): propina, ISC, etc.
+        additional_taxes = {}
 
         is_refund = inv.move_type in ('out_refund', 'in_refund')
         # Solo ítems de producto/servicio (no secciones ni notas de línea).
@@ -938,14 +964,24 @@ class AccountMove(models.Model):
                 elif tax_id.amount == 0 and is_e46 and 'ITBIS' in tg_u:
                     summary['base_0'] += base
                     summary['itbis_0'] += amt
-                elif 'PROPINA' in tg_u and float(tax_id.amount or 0) >= 0:
-                    rk = '%.10g' % float_round(float(tax_id.amount or 0.0), precision_digits=6)
-                    if rk not in propina_additional:
-                        propina_additional[rk] = {
-                            'tasa': float(tax_id.amount or 0.0),
-                            'monto': 0.0,
-                        }
-                    propina_additional[rk]['monto'] += float(amt)
+                else:
+                    cod_tabla = inv._dgii_normalize_codigo_tabla_impuesto(tax_id, tg_u)
+                    if cod_tabla and float(tax_id.amount or 0) >= 0:
+                        tasa = float(tax_id.amount or 0.0)
+                        rk = (
+                            cod_tabla,
+                            '%.10g' % float_round(tasa, precision_digits=6),
+                        )
+                        if rk not in additional_taxes:
+                            additional_taxes[rk] = {
+                                'tipo': cod_tabla,
+                                'tasa': tasa,
+                                'monto': 0.0,
+                                'bucket': inv._dgii_impuesto_adicional_xml_bucket(
+                                    cod_tabla, tax_id
+                                ),
+                            }
+                        additional_taxes[rk]['monto'] += float(amt)
 
             if nf_line:
                 summary['monto_no_facturable'] += float_round(
@@ -958,17 +994,27 @@ class AccountMove(models.Model):
 
         summary['total_itbis'] = summary['itbis_18'] + summary['itbis_16'] + summary['itbis_0']
 
-        for rk in sorted(propina_additional.keys(), key=lambda k: propina_additional[k]['tasa']):
-            pdata = propina_additional[rk]
-            rm = float_round(pdata['monto'], precision_digits=prec)
+        for rk in sorted(
+            additional_taxes.keys(),
+            key=lambda k: (additional_taxes[k]['tipo'], additional_taxes[k]['tasa']),
+        ):
+            adata = additional_taxes[rk]
+            rm = float_round(adata['monto'], precision_digits=prec)
             if float_is_zero(rm, precision_rounding=prec):
                 continue
-            summary['impuestos_adicionales'].append({
-                'tipo': '001',
-                'tasa': pdata['tasa'],
+            row = {
+                'tipo': adata['tipo'],
+                'tasa': adata['tasa'],
                 'monto': rm,
-                'otros_impuestos': rm,
-            })
+            }
+            bucket = adata['bucket']
+            if bucket == 'especifico':
+                row['monto_isc_especifico'] = rm
+            elif bucket == 'advalorem':
+                row['monto_isc_advalorem'] = rm
+            else:
+                row['otros_impuestos'] = rm
+            summary['impuestos_adicionales'].append(row)
 
         for key in (
             'base_18', 'itbis_18', 'base_16', 'itbis_16', 'base_0', 'itbis_0',
@@ -1231,6 +1277,7 @@ class AccountMove(models.Model):
             _logger.debug("Preparing main record data for invoice %s", invoice.id)
             record_data = {
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
+                'invoice_date_due': invoice.invoice_date_due.strftime('%Y-%m-%d') if invoice.invoice_date_due else '',
                 'l10n_latam_document_number': invoice.l10n_latam_document_number or '',
                 'l10n_do_ecf_security_code': (invoice.l10n_do_ecf_security_code or '').strip() or None,
                 # Siempre 0: e-CF en base gravable + ITBIS por separado (no precio con ITBIS incluido).

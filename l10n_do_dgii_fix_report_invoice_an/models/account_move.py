@@ -36,8 +36,114 @@ class AccountMove(models.Model):
             ("5", _("05 - Referencia a Factura Electrónica de Consumidor Final")),
         ]
 
+    @api.depends(
+        'l10n_latam_document_type_id',
+        'journal_id',
+        'move_type',
+        'reversed_entry_id',
+        'reversed_entry_id.l10n_latam_manual_document_number',
+    )
+    def _compute_l10n_latam_manual_document_number(self):
+        recs_with_journal = self.filtered(
+            lambda x: x.journal_id and x.journal_id.l10n_latam_use_documents
+        )
+        for rec in recs_with_journal:
+            rec.l10n_latam_manual_document_number = rec._is_manual_document_number(
+                rec.journal_id
+            )
+        (self - recs_with_journal).l10n_latam_manual_document_number = False
+
     def _is_manual_document_number(self, journal):
+        if not self:
+            return super()._is_manual_document_number(journal)
+        self.ensure_one()
+
+        if (
+            self.l10n_latam_document_type_id
+            and self.l10n_latam_document_type_id.l10n_do_ncf_type
+            in ("e-credit_note", "e-debit_note")
+        ):
+            return False
+
+        if (
+            self.reversed_entry_id
+            and self.reversed_entry_id.l10n_latam_document_type_id.l10n_do_ncf_type
+            in ("e-informal", "e-minor", "e-exterior")
+        ):
+            return False
+
+        if self.reversed_entry_id:
+            return self.reversed_entry_id.l10n_latam_manual_document_number
+
+        do_country = self.env.ref("base.do", raise_if_not_found=False)
+        if (
+            do_country
+            and self.company_id.country_id == do_country
+            and self.l10n_latam_document_type_id
+        ):
+            return self.move_type in (
+                "in_invoice",
+                "in_refund",
+            ) and self.l10n_latam_document_type_id.l10n_do_ncf_type not in (
+                "minor",
+                "e-minor",
+                "informal",
+                "e-informal",
+                "exterior",
+                "e-exterior",
+            )
+
         return super()._is_manual_document_number(journal)
+
+    def _dgii_fix_ecf_type_prefixes(self):
+        return (
+            getattr(self, "E_CF_VENTAS", [])
+            + getattr(self, "E_CF_COMPRAS", [])
+            + getattr(self, "E_CF_AJUSTES", [])
+        )
+
+    def _dgii_fix_needs_temp_document_number(self):
+        """True si el e-CF DGII debe llevar TEMP-{id} antes de consumir secuencia real."""
+        self.ensure_one()
+        if not (self.journal_id and getattr(self.journal_id, "is_dgii", False)):
+            return False
+        if not getattr(self, "is_ecf_invoice", False):
+            return False
+        num = (self.l10n_latam_document_number or "").strip()
+        if num.startswith("TEMP-"):
+            return False
+        if num and len(num) >= 3 and num[1:3] in self._dgii_fix_ecf_type_prefixes():
+            return False
+        return True
+
+    def _dgii_fix_assign_temp_document_number(self):
+        self.ensure_one()
+        self._compute_l10n_do_fiscal_sequence()
+        temp_number = "TEMP-%s" % self.id
+        vals = {
+            "l10n_latam_document_number": temp_number,
+            "payment_reference": "%s - %s" % (self.name, temp_number)
+            if self.name and self.name != "/"
+            else temp_number,
+        }
+        if self.l10n_do_fiscal_sequence_id:
+            vals["l10n_do_ncf_expiration_date"] = (
+                self.l10n_do_fiscal_sequence_id.expiration_date
+            )
+        self.write(vals)
+        _logger.info(
+            "Deferred sequence consumption (TEMP number assigned) for DGII ECF invoice %s",
+            self.id,
+        )
+
+    def _defer_dgii_test_xsd_sequence(self):
+        self.ensure_one()
+        cre = self.company_id.fe_dgii_id.filtered(lambda p: p.active)[:1]
+        return bool(
+            cre
+            and cre.dgii_client_mode == "test"
+            and cre.dgii_validate_xsd
+        )
 
     def _compute_l10n_do_fiscal_sequence(self):
         super()._compute_l10n_do_fiscal_sequence()
@@ -58,30 +164,27 @@ class AccountMove(models.Model):
 
     def _post(self, soft=True):
         """Posponer consumo de secuencia fiscal en facturas e-CF con diario DGII hasta el flujo XML."""
+        for inv in self:
+            if inv._dgii_fix_needs_temp_document_number():
+                inv._dgii_fix_assign_temp_document_number()
+
         res = super()._post(soft)
 
         for inv in self:
-            is_dgii_ecf_journal = inv.journal_id and getattr(inv.journal_id, 'is_dgii', False)
-            is_ecf_invoice = getattr(inv, 'is_ecf_invoice', False)
+            is_dgii_ecf_journal = inv.journal_id and getattr(
+                inv.journal_id, "is_dgii", False
+            )
+            is_ecf_invoice = getattr(inv, "is_ecf_invoice", False)
 
-            # Secuencia temporal solo si es diario DGII ECF y el número no es ya TEMP-.
-            if is_dgii_ecf_journal and is_ecf_invoice and not (inv.l10n_latam_document_number or "").startswith("TEMP-"):
-                if not inv.l10n_latam_document_number or not inv.l10n_latam_document_number[1:3] in (
-                    inv.E_CF_VENTAS + inv.E_CF_COMPRAS + inv.E_CF_AJUSTES
-                ):
-                    temp_number = f"TEMP-{inv.id}"
-                    inv.state = "draft"
+            if is_dgii_ecf_journal and is_ecf_invoice:
+                num = (inv.l10n_latam_document_number or "").strip()
+                if num.startswith("TEMP-") and inv.name and inv.name != "/":
                     inv.write({
-                        "state": "posted",
-                        "l10n_latam_document_number": temp_number,
-                        "payment_reference": f'{inv.name} - {temp_number}',
-                        "l10n_do_ncf_expiration_date": inv.l10n_do_fiscal_sequence_id.expiration_date if inv.l10n_do_fiscal_sequence_id else False,
+                        "payment_reference": "%s - %s" % (inv.name, num),
                     })
-                    _logger.info(
-                        "Deferred sequence consumption (TEMP number assigned) for DGII ECF invoice %s",
-                        inv.id,
-                    )
-            elif not is_dgii_ecf_journal and not inv.l10n_latam_document_number:
+                continue
+
+            if not is_dgii_ecf_journal and not inv.l10n_latam_document_number:
                 if inv.l10n_do_fiscal_sequence_id:
                     document_number = inv.l10n_do_fiscal_sequence_id.get_fiscal_number()
                     inv.state = "draft"
@@ -89,7 +192,7 @@ class AccountMove(models.Model):
                         "state": "posted",
                         "l10n_latam_document_number": document_number,
                         "l10n_do_ncf_expiration_date": inv.l10n_do_fiscal_sequence_id.expiration_date,
-                        "payment_reference": f'{inv.name} - {document_number}',
+                        "payment_reference": "%s - %s" % (inv.name, document_number),
                     })
                     _logger.info(
                         "Normal sequence consumption for non-DGII ECF invoice %s",
@@ -97,6 +200,10 @@ class AccountMove(models.Model):
                     )
 
         return res
+
+    def build_xml_to_print(self, invoice, type_document):
+        invoice._l10n_do_dgii_fix_consume_fiscal_if_needed_for_xml()
+        return super().build_xml_to_print(invoice, type_document)
 
     def _l10n_do_dgii_fix_consume_fiscal_if_needed_for_xml(self):
         for invoice in self:
@@ -138,6 +245,8 @@ class AccountMove(models.Model):
                 'l10n_do_ncf_expiration_date': seq.expiration_date,
                 'payment_reference': '%s - %s' % (invoice.name, document_number),
             })
+            if invoice.itx_xml_data_id:
+                invoice.itx_xml_data_id.name = document_number
             _logger.info(
                 "DGII FE fix: e-NCF asignado antes del XML para %s: %s",
                 invoice.name,

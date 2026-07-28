@@ -6,6 +6,7 @@ import base64
 import json
 import re
 from datetime import datetime, date
+from urllib.parse import unquote
 #from odoo.addons.l10n_do_dgii_fe_base.utils.xml_base import XmlInterface
 
 _logger = logging.getLogger(__name__)
@@ -385,12 +386,65 @@ class ItxXMLDataDGII(models.Model):
         if code:
             self.signature = code
 
+    @staticmethod
+    def _dgii_qr_fechafirma_param(fechafirma):
+        """DGII RI: ``dd-mm-aaaa HH:mm:ss`` con espacio como ``%20`` (no ``+`` / ``%2B``)."""
+        return (fechafirma or '').strip().replace(' ', '%20')
+
+    @staticmethod
+    def _dgii_qr_monto_param(monto):
+        try:
+            return '%.2f' % abs(float(monto))
+        except (TypeError, ValueError):
+            return '0.00'
+
+    def _parse_xml_text_tag(self, tag, xml_text=None):
+        """Primer valor textual de ``<Tag>...</Tag>`` en XML firmado."""
+        chunk = xml_text if xml_text is not None else (self.signed_xml or '')
+        if not chunk:
+            return ''
+        m = re.search(r'<' + re.escape(tag) + r'>([^<]+)</' + re.escape(tag) + r'>', chunk)
+        return m.group(1).strip() if m else ''
+
+    def _dgii_qr_monto_from_signed_xml(self, inv=None):
+        """``montototal`` del QR = ``MontoTotal`` del e-CF firmado (DOP), no ``amount_total`` USD."""
+        self.ensure_one()
+        monto_xml = self._parse_xml_text_tag('MontoTotal')
+        if monto_xml:
+            return self._dgii_qr_monto_param(monto_xml)
+        inv = inv or self.account_move_id
+        if inv and hasattr(inv, '_dgii_amount_total_in_dop'):
+            return self._dgii_qr_monto_param(inv._dgii_amount_total_in_dop())
+        if inv:
+            return self._dgii_qr_monto_param(inv.amount_total)
+        return '0.00'
+
+    def _normalize_dgii_qr_canonical_url(self, raw):
+        """Normaliza ``fechafirma`` / ``FechaFirma`` y ``encf`` en URL cruda (API o legacy)."""
+        s = str(raw or '').strip()
+        if not s:
+            return s
+        for param in ('fechafirma', 'FechaFirma'):
+            m = re.search(r'(' + param + r'=)([^&]+)', s, re.I)
+            if not m:
+                continue
+            val = unquote(m.group(2).replace('+', ' '))
+            if re.match(r'\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2}', val):
+                fixed = val.replace(' ', '%20')
+                s = s[:m.start(2)] + fixed + s[m.end(2):]
+            break
+        for param in ('encf', 'ENCF'):
+            m = re.search(r'(' + param + r'=)([^&]+)', s, re.I)
+            if m:
+                s = s[:m.start(2)] + m.group(2).upper() + s[m.end(2):]
+                break
+        return s
+
     def _build_fc_consulta_timbre_qr_stamp(self):
         """
         Sello para QR en RFCE: ConsultaTimbreFC (misma URL base que l10n_do_ecf_invoicing).
         """
         self.ensure_one()
-        from odoo.tools import urls
 
         inv = self.account_move_id
         sec = (self.signature or '').strip()
@@ -405,16 +459,11 @@ class ItxXMLDataDGII(models.Model):
         encf = (inv.l10n_latam_document_number or inv.ref or '').strip()
         if not rnc or not encf:
             return None
-        try:
-            monto = abs(float(inv.amount_total))
-        except (TypeError, ValueError):
-            monto = 0.0
-        monto_s = ('%.2f' % monto).rstrip('0').rstrip('.')
-        qr_string = (
+        monto_s = self._dgii_qr_monto_from_signed_xml(inv)
+        return (
             'https://fc.dgii.gov.do/%s/ConsultaTimbreFC?RncEmisor=%s&ENCF=%s&MontoTotal=%s&CodigoSeguridad=%s'
-            % (env_name, rnc, encf, monto_s, urls.url_quote_plus(sec) or '')
+            % (env_name, rnc, encf.upper(), monto_s, sec)
         )
-        return urls.url_quote_plus(qr_string.replace('+', '%2B'))
 
     def _build_ecf_consulta_timbre_qr_stamp(self):
         """
@@ -422,7 +471,6 @@ class ItxXMLDataDGII(models.Model):
         Parámetros según descripción técnica DGII (RI / consulta timbre).
         """
         self.ensure_one()
-        from odoo.tools import urls
 
         inv = self.account_move_id
         sec = (self.signature or '').strip()
@@ -438,15 +486,12 @@ class ItxXMLDataDGII(models.Model):
         encf = (inv.l10n_latam_document_number or inv.ref or '').strip()
         if not rnc_e or not encf:
             return None
-        idoc = inv.invoice_date
-        fecha_emision = idoc.strftime('%d-%m-%Y') if idoc else ''
+        fecha_emision = self._parse_xml_text_tag('FechaEmision') or (
+            inv.invoice_date.strftime('%d-%m-%Y') if inv.invoice_date else ''
+        )
         if not fecha_emision:
             return None
-        try:
-            monto = abs(float(inv.amount_total))
-        except (TypeError, ValueError):
-            monto = 0.0
-        monto_s = ('%.2f' % monto).rstrip('0').rstrip('.')
+        monto_s = self._dgii_qr_monto_from_signed_xml(inv)
         dt_firma = self._parse_fecha_hora_firma_from_xml(self.signed_xml or '')
         if dt_firma:
             fechafirma = dt_firma.strftime('%d-%m-%Y %H:%M:%S')
@@ -460,21 +505,21 @@ class ItxXMLDataDGII(models.Model):
             fechafirma = ''
         if not fechafirma:
             return None
-        qr_string = (
+        fechafirma_param = self._dgii_qr_fechafirma_param(fechafirma)
+        return (
             'https://ecf.dgii.gov.do/%s/consultatimbre?rncemisor=%s&rnccomprador=%s&encf=%s'
             '&fechaemision=%s&montototal=%s&fechafirma=%s&codigoseguridad=%s'
             % (
                 env_seg,
                 rnc_e,
                 rnc_c,
-                encf.lower(),
+                encf.upper(),
                 fecha_emision,
                 monto_s,
-                urls.url_quote_plus(fechafirma) or '',
-                urls.url_quote_plus(sec) or '',
+                fechafirma_param,
+                sec,
             )
         )
-        return urls.url_quote_plus(qr_string.replace('+', '%2B'))
 
     def _parse_dgii_datetime_loose(self, raw):
         """Parsea fechas típicas DGII / API (string o datetime)."""
@@ -609,10 +654,9 @@ class ItxXMLDataDGII(models.Model):
             return False
         from odoo.tools import urls
 
-        raw = str(raw_stamp).strip()
+        raw = self._normalize_dgii_qr_canonical_url(raw_stamp)
         if not raw:
             return False
-        raw = raw.replace('+', '%2B')
         self.qr_code = urls.url_quote_plus(raw)
         return True
 
@@ -669,8 +713,7 @@ class ItxXMLDataDGII(models.Model):
             return
 
         stamp = self._build_fc_consulta_timbre_qr_stamp()
-        if stamp:
-            self.qr_code = stamp
+        if stamp and self._store_qr_code_normalized(stamp):
             if dbg:
                 _logger.info(
                     '[DGII][report_qr] qr persistido fallback RFCE FC | itx_id=%s final_len=%s',
@@ -680,8 +723,7 @@ class ItxXMLDataDGII(models.Model):
             return
 
         stamp_ecf = self._build_ecf_consulta_timbre_qr_stamp()
-        if stamp_ecf:
-            self.qr_code = stamp_ecf
+        if stamp_ecf and self._store_qr_code_normalized(stamp_ecf):
             if dbg:
                 _logger.info(
                     '[DGII][report_qr] qr persistido fallback ECF consultatimbre | itx_id=%s final_len=%s',

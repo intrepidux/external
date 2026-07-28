@@ -11,12 +11,12 @@
                     <div style="display: inline-block; vertical-align: top; margin-left: 10px;">
                         <t t-if="o.l10n_do_ecf_security_code">
                             <strong>Código de Seguridad:</strong><br/>
-                            <span t-out="o.l10n_do_ecf_security_code"/>
+                            <span t-esc="o.l10n_do_ecf_security_code"/>
                         </t>
                         <br/>
                         <t t-if="o.l10n_do_ecf_sign_date">
                             <strong>Fecha Firma Digital:</strong><br/>
-                            <span t-out="context_timestamp(o.l10n_do_ecf_sign_date).strftime('%d-%m-%Y %H:%M:%S')"/>
+                            <span t-esc="context_timestamp(o.l10n_do_ecf_sign_date).strftime('%d-%m-%Y %H:%M:%S')"/>
                         </t>
                     </div>
                 </div>

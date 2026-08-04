@@ -6,7 +6,7 @@ import base64
 import json
 import re
 from datetime import datetime, date
-from urllib.parse import unquote
+from urllib.parse import quote, unquote, unquote_plus
 #from odoo.addons.l10n_do_dgii_fe_base.utils.xml_base import XmlInterface
 
 _logger = logging.getLogger(__name__)
@@ -274,7 +274,7 @@ class ItxXMLDataDGII(models.Model):
     )
     qr_code = fields.Char(
         string='QR Code',
-        help='Sello/url para código QR en PDF (desde API qr_code o fallback RFCE).',
+        help='URL canónica del sello DGII (legible). Para PDF usar url_quote_plus vía itx_dgii_electronic_stamp_encoded.',
     )
     dgi_err_msg = fields.Text(string='Mensaje de Error DGI')
     dgi_status = fields.Char(string='Estado DGI (Texto)', default='NO ENVIADO')
@@ -392,6 +392,11 @@ class ItxXMLDataDGII(models.Model):
         return (fechafirma or '').strip().replace(' ', '%20')
 
     @staticmethod
+    def _dgii_qr_codigoseguridad_param(sec):
+        """Valor URL para ``codigoseguridad`` / ``CodigoSeguridad`` (``+`` → ``%2B``, etc.)."""
+        return quote((sec or '').strip(), safe='')
+
+    @staticmethod
     def _dgii_qr_monto_param(monto):
         try:
             return '%.2f' % abs(float(monto))
@@ -419,8 +424,27 @@ class ItxXMLDataDGII(models.Model):
             return self._dgii_qr_monto_param(inv.amount_total)
         return '0.00'
 
+    @staticmethod
+    def _dgii_qr_to_canonical_url(raw):
+        """Decodifica URL quotada (legacy o API) a forma legible ``https://...``."""
+        s = str(raw or '').strip()
+        if not s:
+            return s
+        if not s.startswith('http://') and not s.startswith('https://'):
+            s = unquote_plus(s)
+        return s
+
+    def _canonical_qr_stamp_url(self):
+        """URL canónica del sello desde ``qr_code`` (soporta registros legacy quotados)."""
+        self.ensure_one()
+        stored = (self.qr_code or '').strip()
+        if not stored:
+            return ''
+        raw = self._dgii_qr_to_canonical_url(stored)
+        return self._normalize_dgii_qr_canonical_url(raw)
+
     def _normalize_dgii_qr_canonical_url(self, raw):
-        """Normaliza ``fechafirma`` / ``FechaFirma`` y ``encf`` en URL cruda (API o legacy)."""
+        """Normaliza ``fechafirma``, ``encf`` y ``codigoseguridad`` en URL cruda (API o legacy)."""
         s = str(raw or '').strip()
         if not s:
             return s
@@ -429,6 +453,9 @@ class ItxXMLDataDGII(models.Model):
             if not m:
                 continue
             val = unquote(m.group(2).replace('+', ' '))
+            # API/legacy: separador fecha-hora como ``+`` o ``%2B`` en vez de espacio.
+            if re.match(r'\d{2}-\d{2}-\d{4}[+\s]\d{2}:\d{2}:\d{2}', val):
+                val = re.sub(r'^(\d{2}-\d{2}-\d{4})[+\s]+', r'\1 ', val)
             if re.match(r'\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2}', val):
                 fixed = val.replace(' ', '%20')
                 s = s[:m.start(2)] + fixed + s[m.end(2):]
@@ -438,6 +465,17 @@ class ItxXMLDataDGII(models.Model):
             if m:
                 s = s[:m.start(2)] + m.group(2).upper() + s[m.end(2):]
                 break
+        for param in ('codigoseguridad', 'CodigoSeguridad'):
+            m = re.search(r'(' + param + r'=)([^&]*)', s, re.I)
+            if not m:
+                continue
+            sec_raw = unquote(m.group(2))
+            sig = (self.signature or '').strip()
+            if sig and (' ' in sec_raw or not sec_raw):
+                sec_raw = sig
+            sec_encoded = self._dgii_qr_codigoseguridad_param(sec_raw)
+            s = s[:m.start(2)] + sec_encoded + s[m.end(2):]
+            break
         return s
 
     def _build_fc_consulta_timbre_qr_stamp(self):
@@ -460,9 +498,10 @@ class ItxXMLDataDGII(models.Model):
         if not rnc or not encf:
             return None
         monto_s = self._dgii_qr_monto_from_signed_xml(inv)
+        sec_param = self._dgii_qr_codigoseguridad_param(sec)
         return (
             'https://fc.dgii.gov.do/%s/ConsultaTimbreFC?RncEmisor=%s&ENCF=%s&MontoTotal=%s&CodigoSeguridad=%s'
-            % (env_name, rnc, encf.upper(), monto_s, sec)
+            % (env_name, rnc, encf.upper(), monto_s, sec_param)
         )
 
     def _build_ecf_consulta_timbre_qr_stamp(self):
@@ -506,6 +545,7 @@ class ItxXMLDataDGII(models.Model):
         if not fechafirma:
             return None
         fechafirma_param = self._dgii_qr_fechafirma_param(fechafirma)
+        sec_param = self._dgii_qr_codigoseguridad_param(sec)
         return (
             'https://ecf.dgii.gov.do/%s/consultatimbre?rncemisor=%s&rnccomprador=%s&encf=%s'
             '&fechaemision=%s&montototal=%s&fechafirma=%s&codigoseguridad=%s'
@@ -517,7 +557,7 @@ class ItxXMLDataDGII(models.Model):
                 fecha_emision,
                 monto_s,
                 fechafirma_param,
-                sec,
+                sec_param,
             )
         )
 
@@ -648,16 +688,16 @@ class ItxXMLDataDGII(models.Model):
         return _first_str(*chunks)
 
     def _store_qr_code_normalized(self, raw_stamp):
-        """Guarda ``qr_code`` en el mismo formato que espera ``/report/barcode`` (un nivel quote)."""
+        """Persiste URL canónica legible en ``qr_code`` (encode solo en reporte vía *_encoded)."""
         self.ensure_one()
         if raw_stamp is None or raw_stamp is False:
             return False
-        from odoo.tools import urls
 
-        raw = self._normalize_dgii_qr_canonical_url(raw_stamp)
+        raw = self._dgii_qr_to_canonical_url(raw_stamp)
+        raw = self._normalize_dgii_qr_canonical_url(raw)
         if not raw:
             return False
-        self.qr_code = urls.url_quote_plus(raw)
+        self.qr_code = raw
         return True
 
     def _dgii_debug_report_qr_enabled(self):

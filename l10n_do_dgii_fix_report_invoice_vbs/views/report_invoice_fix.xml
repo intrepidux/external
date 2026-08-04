@@ -16,14 +16,14 @@
             <attribute name="t-if">not is_l10n_do_invoice</attribute>
         </xpath>
 
-        <!-- Usar QR DGII API en el mismo bloque que ya mete l10n_do_accounting. -->
+        <!-- Usar QR DGII API: stamp legible + encoded para /report/barcode. -->
         <xpath expr="//t[@t-if='o.l10n_do_electronic_stamp']" position="attributes">
-            <attribute name="t-if">o.itx_dgii_electronic_stamp</attribute>
+            <attribute name="t-if">o.itx_dgii_electronic_stamp_encoded</attribute>
         </xpath>
 
         <xpath expr="//img[contains(@t-att-src, 'o.l10n_do_electronic_stamp')]" position="attributes">
             <attribute name="t-att-src">
-                &apos;/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=&apos; + o.itx_dgii_electronic_stamp if o.itx_dgii_electronic_stamp else &apos;&apos;
+                &apos;/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=&apos; + o.itx_dgii_electronic_stamp_encoded if o.itx_dgii_electronic_stamp_encoded else &apos;&apos;
             </attribute>
         </xpath>
 

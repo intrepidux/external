@@ -612,6 +612,7 @@ class AccountMove(models.Model):
                 lines_data.append({
                     'name': self.get_clean_description(line),
                     'quantity': line.quantity or 0.0,
+                    'discount': line.discount or 0.0,
                     'price_unit': adjusted_price_unit,
                     'price_subtotal': line.price_subtotal or 0.0,
                     'price_total': line.price_total or 0.0,

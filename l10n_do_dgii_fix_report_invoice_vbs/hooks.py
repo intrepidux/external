@@ -5,17 +5,23 @@ import logging
 _logger = logging.getLogger(__name__)
 
 
-def post_init_hook(cr, registry):
-    """Generate missing ECF sequences for existing fiscal journals.
+def post_init_hook(env):
+    """Generate missing ECF sequences; clean orphan FE views if fe_base absent."""
+    fe_mod = env["ir.module.module"].search(
+        [("name", "=", "l10n_do_dgii_fe_base")], limit=1
+    )
+    if fe_mod.state != "installed":
+        try:
+            from odoo.addons.l10n_do_dgii_fe_base.fe_ui_cleanup import (
+                cleanup_orphan_dgii_fe_ui,
+            )
 
-    When the module is installed/updated, existing journals that use
-    l10n_latam documents and belong to Dominican Republic companies
-    with ECF enabled may not have sequences for electronic document
-    types (E41, E44, etc.). This hook regenerates the missing sequences.
-    """
-    from odoo import api, SUPERUSER_ID
-
-    env = api.Environment(cr, SUPERUSER_ID, {})
+            cleanup_orphan_dgii_fe_ui(env)
+        except ImportError:
+            _logger.warning(
+                "[post_init_hook] l10n_do_dgii_fe_base not on addons path; "
+                "orphan FE invoice views were not cleaned."
+            )
 
     _logger.info(
         "[post_init_hook] Regenerating fiscal sequences for existing ECF companies..."

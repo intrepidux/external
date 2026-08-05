@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Compact gray box under NCF badge (header — keep short). -->
+    <template id="invoice_do_badge_fiscal">
+        <table class="itx-do-badge-fiscal" width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr t-if="o.company_id.vat">
+                <td class="itx-do-badge-fiscal__label">RNC Emisor</td>
+                <td class="itx-do-badge-fiscal__value">
+                    <span t-field="o.company_id.vat"/>
+                </td>
+            </tr>
+            <tr t-if="o.invoice_date">
+                <td class="itx-do-badge-fiscal__label">Fecha de Emisión</td>
+                <td class="itx-do-badge-fiscal__value">
+                    <span t-field="o.invoice_date"/>
+                    <t t-if="o.create_date">
+                        <span t-esc="context_timestamp(o.create_date).strftime(' %H:%M')"/>
+                    </t>
+                </td>
+            </tr>
+            <tr t-if="o.invoice_date_due and o.move_type == 'out_invoice'">
+                <td class="itx-do-badge-fiscal__label">Fecha de Vencimiento</td>
+                <td class="itx-do-badge-fiscal__value">
+                    <span t-field="o.invoice_date_due"/>
+                </td>
+            </tr>
+            <tr t-if="o.currency_id">
+                <td class="itx-do-badge-fiscal__label">Moneda</td>
+                <td class="itx-do-badge-fiscal__value">
+                    <span t-esc="o.currency_id.currency_unit_label or o.currency_id.name"/>
+                    (<span t-esc="o.currency_id.name"/>)
+                </td>
+            </tr>
+            <tr t-if="o.invoice_payment_term_id">
+                <td class="itx-do-badge-fiscal__label">Condición de Pago</td>
+                <td class="itx-do-badge-fiscal__value">
+                    <span t-field="o.invoice_payment_term_id.name"/>
+                </td>
+            </tr>
+        </table>
+    </template>
+
+    <!-- Article meta: DATOS DEL CLIENTE | DATOS DEL DOCUMENTO (GC FE). -->
+    <template id="invoice_do_meta_panel">
+        <table class="itx-do-fiscal-meta itx-do-fiscal-meta--2col" width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+                <td class="itx-do-fiscal-meta__col" width="50%" valign="top">
+                    <div class="itx-do-fiscal-meta__heading">
+                        <i class="fa fa-user itx-do-fiscal-meta__heading-icon" aria-hidden="true"/>
+                        <span>DATOS DEL CLIENTE</span>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.partner_id">
+                        <span class="itx-meta-row__label">Cliente</span>
+                        <span class="itx-meta-row__value" t-field="o.partner_id.commercial_partner_id.name"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.partner_id.vat">
+                        <span class="itx-meta-row__label">
+                            <t t-if="len(str(o.partner_id.vat).replace('-','')) == 9">RNC</t>
+                            <t t-elif="len(str(o.partner_id.vat).replace('-','')) == 11">Cédula</t>
+                            <t t-else="">Identificación</t>
+                        </span>
+                        <span class="itx-meta-row__value" t-field="o.partner_id.vat"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.partner_id">
+                        <span class="itx-meta-row__label">Dirección</span>
+                        <span class="itx-meta-row__value"
+                              t-field="o.partner_id"
+                              t-options='{"widget": "contact", "fields": ["address"], "no_marker": true}'/>
+                    </div>
+                    <div class="itx-meta-row"
+                         t-if="o.partner_id and o.partner_id != o.partner_id.commercial_partner_id">
+                        <span class="itx-meta-row__label">Contacto</span>
+                        <span class="itx-meta-row__value" t-field="o.partner_id.name"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.partner_id.phone or o.partner_id.mobile">
+                        <span class="itx-meta-row__label">Teléfono</span>
+                        <span class="itx-meta-row__value" t-esc="o.partner_id.phone or o.partner_id.mobile"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.partner_id.email">
+                        <span class="itx-meta-row__label">Correo</span>
+                        <span class="itx-meta-row__value" t-field="o.partner_id.email"/>
+                    </div>
+                </td>
+                <td class="itx-do-fiscal-meta__col" width="50%" valign="top">
+                    <div class="itx-do-fiscal-meta__heading">
+                        <i class="fa fa-file-text-o itx-do-fiscal-meta__heading-icon" aria-hidden="true"/>
+                        <span>DATOS DEL DOCUMENTO</span>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.l10n_latam_document_type_id">
+                        <span class="itx-meta-row__label">Tipo de Comprobante</span>
+                        <span class="itx-meta-row__value" t-field="o.l10n_latam_document_type_id.report_name"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.l10n_do_income_type">
+                        <span class="itx-meta-row__label">Tipo de Transacción</span>
+                        <span class="itx-meta-row__value"
+                              t-esc="dict(o.fields_get(['l10n_do_income_type'])['l10n_do_income_type']['selection']).get(o.l10n_do_income_type)"/>
+                    </div>
+                    <div class="itx-meta-row"
+                         t-if="(o.move_type in ('out_refund', 'in_refund') or o.debit_origin_id) and o.l10n_do_origin_ncf">
+                        <span class="itx-meta-row__label">NCF Relacionado</span>
+                        <span class="itx-meta-row__value" t-field="o.l10n_do_origin_ncf"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.invoice_origin">
+                        <span class="itx-meta-row__label">Proyecto / Origen</span>
+                        <span class="itx-meta-row__value" t-field="o.invoice_origin"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
+                        <span class="itx-meta-row__label">Ubicación</span>
+                        <span class="itx-meta-row__value"
+                              t-field="o.partner_shipping_id"
+                              t-options='{"widget": "contact", "fields": ["city", "country"], "no_marker": true}'/>
+                    </div>
+                    <div class="itx-meta-row" t-if="o.ref">
+                        <span class="itx-meta-row__label">Referencia</span>
+                        <span class="itx-meta-row__value" t-field="o.ref"/>
+                    </div>
+                    <div class="itx-meta-row"
+                         t-if="o.l10n_latam_use_documents and o.state == 'posted' and o.ncf_expiration_date and o.l10n_latam_document_type_id and o.l10n_latam_document_type_id.doc_code_prefix[1:] not in ('32', '34', '02')">
+                        <span class="itx-meta-row__label">
+                            <t t-if="o.is_ecf_invoice">Vencimiento e-NCF</t>
+                            <t t-else="">Válida hasta</t>
+                        </span>
+                        <span class="itx-meta-row__value" t-field="o.ncf_expiration_date"/>
+                    </div>
+                    <div class="itx-meta-row" t-if="ecf_representation and o.l10n_do_ecf_modification_code">
+                        <span class="itx-meta-row__label">Código modificación</span>
+                        <span class="itx-meta-row__value" t-field="o.l10n_do_ecf_modification_code"/>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </template>
+
+</odoo>

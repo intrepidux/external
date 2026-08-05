@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="footer_main_do_ecf" inherit_id="itx_document_layout.external_layout_intrepidux">
+        <xpath expr="//div[@name='itx_footer_qr_slot']" position="inside">
+            <t t-if="itx_intrepidux and is_l10n_do_invoice and o.itx_dgii_electronic_stamp">
+                <table class="itx-do-ecf-stamp" width="100%" border="0" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td width="22%" valign="middle" class="itx-do-ecf-stamp__qr">
+                            <img t-att-src="'/report/barcode/?barcode_type=QR&amp;width=140&amp;height=140&amp;value=' + o.itx_dgii_electronic_stamp"/>
+                        </td>
+                        <td width="48%" valign="middle" class="itx-do-ecf-stamp__info text-start">
+                            <div class="itx-do-ecf-stamp__title">COMPROBANTE FISCAL ELECTRÓNICO (e-CF)</div>
+                            <div t-if="o.l10n_do_ecf_security_code" class="mt-1">
+                                <strong>Código de Seguridad:</strong>
+                                <span t-esc="o.l10n_do_ecf_security_code"/>
+                            </div>
+                            <div t-if="o.l10n_do_ecf_sign_date" class="mt-1">
+                                <strong>Fecha Firma Digital:</strong>
+                                <span t-esc="context_timestamp(o.l10n_do_ecf_sign_date).strftime('%d-%m-%Y %H:%M:%S')"/>
+                            </div>
+                            <div t-if="o.l10n_latam_document_number" class="mt-1">
+                                <strong>Secuencia:</strong>
+                                <span t-esc="o.l10n_latam_document_number"/>
+                            </div>
+                        </td>
+                        <td width="30%" valign="bottom" class="itx-do-ecf-stamp__auth text-center">
+                            <div class="itx-do-ecf-stamp__sign-line"/>
+                            <div class="itx-do-ecf-stamp__auth-text">
+                                Autorizado por
+                                <span t-esc="o.company_id.name"/>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>

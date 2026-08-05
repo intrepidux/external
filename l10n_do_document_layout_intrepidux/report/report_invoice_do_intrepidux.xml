@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Generic Intrepidux invoice hooks: skip when DO fiscal invoice. -->
+    <template id="report_invoice_document_intrepidux_do"
+              inherit_id="itx_document_layout_account.report_invoice_document_intrepidux">
+        <xpath expr="//t[@t-if='itx_use_intrepidux']" position="attributes">
+            <attribute name="t-if">itx_use_intrepidux and o.company_id.country_id.code != 'DO'</attribute>
+        </xpath>
+    </template>
+
+    <!-- DO + Intrepidux: fiscal badge/meta in ARTICLE (like issuer_info), never heavy grids in PDF header. -->
+    <template id="report_invoice_document_do_intrepidux"
+              inherit_id="l10n_do_dgii_fix_report_invoice_vbs.report_invoice_document_ecf_fix"
+              priority="25">
+
+        <xpath expr="//t[@t-call='web.external_layout']" position="before">
+            <t t-set="ecf_representation" t-value="o.is_ecf_invoice"/>
+            <t t-set="is_l10n_do_invoice"
+               t-value="o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)"/>
+            <t t-set="itx_intrepidux"
+               t-value="o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux'"/>
+            <t t-if="itx_intrepidux and is_l10n_do_invoice">
+                <t t-set="itx_doc_title" t-value="o.l10n_latam_document_type_id.report_name"/>
+                <t t-set="itx_doc_number"
+                   t-value="('%s: %s' % ('e-NCF' if o.is_ecf_invoice else 'NCF', o.l10n_latam_document_number or '')) if o.l10n_latam_document_number else o.name"/>
+                <t t-set="itx_doc_badge_extra"
+                   t-value="'l10n_do_document_layout_intrepidux.invoice_do_badge_fiscal'"/>
+                <t t-set="itx_header_meta_l10n" t-value="'l10n_do_document_layout_intrepidux.invoice_do_meta_panel'"/>
+                <t t-set="itx_summary_items" t-value="[
+                    ('Condiciones de Pago', o.invoice_payment_term_id.name or '—', 'fa-handshake-o'),
+                    ('Medio de Pago', o.partner_bank_id.display_name or o.payment_reference or '—', 'fa-university'),
+                    ('Moneda', (o.currency_id.currency_unit_label or o.currency_id.name) and '%s (%s)' % (o.currency_id.currency_unit_label or o.currency_id.name, o.currency_id.name), 'fa-money'),
+                    ('Vencimiento', o.invoice_date_due or '—', 'fa-calendar'),
+                ]"/>
+            </t>
+        </xpath>
+
+        <!-- Native issuer_info stays for non-Intrepidux; layout renders badge+meta. -->
+        <xpath expr="//div[@id='issuer_info']" position="attributes">
+            <attribute name="t-if">is_l10n_do_invoice and not itx_intrepidux</attribute>
+        </xpath>
+
+        <!-- Hide DO partner block duplicated by meta panel. -->
+        <xpath expr="//div[@name='invoice_partner_address']/ancestor::div[hasclass('row')][1]"
+               position="attributes">
+            <attribute name="t-if">not (itx_intrepidux and is_l10n_do_invoice)</attribute>
+        </xpath>
+
+        <!-- QR in body only when not Intrepidux (footer slot). -->
+        <xpath expr="//t[@t-if='o.itx_dgii_electronic_stamp']" position="attributes">
+            <attribute name="t-if">o.itx_dgii_electronic_stamp and not itx_intrepidux</attribute>
+        </xpath>
+    </template>
+
+    <!-- Importe en letras + observaciones | TOTAL A PAGAR chrome -->
+    <template id="report_invoice_document_do_intrepidux_totals"
+              inherit_id="account.report_invoice_document"
+              priority="35">
+
+        <xpath expr="//div[@id='right-elements']" position="before">
+            <t t-set="itx_do_gc_totals"
+               t-value="o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux' and o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)"/>
+            <div t-if="itx_do_gc_totals"
+                 id="itx_do_totals_left"
+                 t-attf-class="#{'col-6' if report_type != 'html' else 'col-12 col-md-6'} d-inline-block float-start pe-3">
+                <div class="itx-do-box itx-do-box--letras mb-2">
+                    <div class="itx-do-box__title">IMPORTE EN LETRAS</div>
+                    <div class="itx-do-box__body">
+                        <span t-field="o.amount_total_words"/>
+                    </div>
+                </div>
+                <div class="itx-do-box itx-do-box--obs" t-if="not is_html_empty(o.narration)">
+                    <div class="itx-do-box__title">OBSERVACIONES</div>
+                    <div class="itx-do-box__body" t-field="o.narration"/>
+                </div>
+            </div>
+        </xpath>
+
+        <xpath expr="//div[@id='right-elements']" position="attributes">
+            <attribute name="t-attf-class">#{'col-5' if report_type != 'html' else 'col-12 col-md-5'} #{'ms-5' if not (o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux' and o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)) else 'ms-0'} d-inline-block float-end</attribute>
+        </xpath>
+
+        <!-- Hide stock amount-in-words under totals (moved to left box). -->
+        <xpath expr="//p[@t-if='o.company_id.display_invoice_amount_total_words']" position="attributes">
+            <attribute name="t-if">o.company_id.display_invoice_amount_total_words and not (o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux' and o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice))</attribute>
+        </xpath>
+
+        <!-- Hide narration duplicate when shown in left box. -->
+        <xpath expr="//div[@name='comment']" position="attributes">
+            <attribute name="t-if">not is_html_empty(o.narration) and not (o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux' and o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice))</attribute>
+        </xpath>
+    </template>
+
+    <!-- TOTAL A PAGAR label on tax totals when DO Intrepidux -->
+    <template id="document_tax_totals_do_intrepidux_label"
+              inherit_id="account.document_tax_totals">
+        <xpath expr="//tr[hasclass('o_total')]/td[1]" position="replace">
+            <td>
+                <strong t-if="o and o._name == 'account.move' and o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux' and o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)">
+                    TOTAL A PAGAR
+                </strong>
+                <strong t-else="">Total</strong>
+            </td>
+        </xpath>
+    </template>
+
+    <template id="report_invoice_document_do_intrepidux_l10n"
+              inherit_id="l10n_do_accounting.report_invoice_document_inherited"
+              priority="30">
+        <xpath expr="//t[@t-call='web.external_layout']" position="before">
+            <t t-set="itx_intrepidux"
+               t-value="o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux'"/>
+            <t t-set="is_l10n_do_invoice"
+               t-value="o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)"/>
+        </xpath>
+        <xpath expr="//strong[normalize-space(text())='Original:']/ancestor::div[hasclass('col-6')][1]"
+               position="attributes">
+            <attribute name="t-if">is_l10n_do_invoice and not itx_intrepidux</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('text-center')][@style='padding-bottom:60px']"
+               position="attributes">
+            <attribute name="t-if">not (itx_intrepidux and is_l10n_do_invoice)</attribute>
+        </xpath>
+    </template>
+
+    <!-- Hide Odoo address row when DO Intrepidux (meta panel has cliente). -->
+    <template id="report_invoice_document_do_intrepidux_base"
+              inherit_id="account.report_invoice_document"
+              priority="30">
+        <xpath expr="//t[@t-call='web.external_layout']" position="before">
+            <t t-set="itx_intrepidux"
+               t-value="o.company_id.external_report_layout_id.key == 'itx_document_layout.external_layout_intrepidux'"/>
+            <t t-set="is_l10n_do_invoice"
+               t-value="o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)"/>
+        </xpath>
+        <xpath expr="//div[@name='no_shipping']/ancestor::div[hasclass('row')][1]"
+               position="attributes">
+            <attribute name="t-if">not (itx_intrepidux and is_l10n_do_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@name='address_same_as_shipping']/ancestor::div[hasclass('row')][1]"
+               position="attributes">
+            <attribute name="t-if">not (itx_intrepidux and is_l10n_do_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@name='address_not_same_as_shipping']/ancestor::div[hasclass('row')][1]"
+               position="attributes">
+            <attribute name="t-if">not (itx_intrepidux and is_l10n_do_invoice)</attribute>
+        </xpath>
+    </template>
+
+</odoo>

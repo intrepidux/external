@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- No-op: summary icons removed from external layout (core boxed has none). -->
+    <template id="footer_summary_icons_do_table" inherit_id="itx_document_layout.footer_summary_icons"/>
+</odoo>

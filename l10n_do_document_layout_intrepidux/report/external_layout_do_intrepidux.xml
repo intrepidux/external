@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- address_layout already skipped for DO Intrepidux via invoice row t-if; keep hook empty-safe. -->
+    <template id="external_layout_intrepidux_do"
+              inherit_id="itx_document_layout.external_layout_intrepidux"/>
+</odoo>

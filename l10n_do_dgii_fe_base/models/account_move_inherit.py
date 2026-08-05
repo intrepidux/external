@@ -15,6 +15,8 @@ _logger = logging.getLogger(__name__)
 # Activar en Ajustes > Técnico > Parámetros del sistema: l10n_do_dgii_fe_base.debug_report_qr = true
 # para loguear también cuando el sello existe (vista previa truncada).
 ICP_DEBUG_REPORT_QR = 'l10n_do_dgii_fe_base.debug_report_qr'
+ICP_QR_STAMP_V2 = 'l10n_do_dgii_fe_base.qr_stamp_v2_migrated'
+ICP_QR_STAMP_V3 = 'l10n_do_dgii_fe_base.qr_stamp_v3_codigo_encoded'
 
 import datetime
 
@@ -61,21 +63,20 @@ class AccountMove(models.Model):
 
     
 
-    # Campo para sello electrónico QR DGII (related para consistencia)
+    # Campo para sello electrónico QR DGII (canónico legible; encode solo en reporte).
     itx_dgii_electronic_stamp = fields.Char(
-        related='itx_xml_data_id.qr_code',
         string="DGII Electronic Stamp",
+        compute='_compute_itx_dgii_electronic_stamp',
         store=True,
         help=(
-            "URL/cadena para el QR en PDF. **Fuente canónica:** respuesta del API (campo qr_code / "
-            "electronic_stamp / etc.); se guarda en itx.xml.data.dgii. Fallback opcional en Odoo solo "
-            "para RFCE (ConsultaTimbreFC) si el parámetro l10n_do_dgii_fe_base.qr_local_fallback está activo."
+            "URL canónica legible para consulta timbre DGII. Fuente: itx.xml.data.dgii.qr_code "
+            "normalizado o reconstruido desde XML firmado."
         ),
     )
 
-
     itx_dgii_electronic_stamp_encoded = fields.Char(
-        compute="_compute_qr_encoded"
+        compute="_compute_qr_encoded",
+        string="DGII Electronic Stamp (encoded for QR barcode)",
     )
 
     # Campos para facturación electrónica DGII, mover cerca de itx_dgii_electronic_stamp_encoded    
@@ -93,21 +94,39 @@ class AccountMove(models.Model):
         string='Valor para parámetro value del QR (report/barcode)',
     )
 
-    @api.depends('itx_xml_data_id', 'itx_xml_data_id.qr_code')
-    def _compute_l10n_do_dgii_report_qr(self):
-        for rec in self:
-            # qr_code ya se guarda con url_quote_plus (cf. _apply / _build_fc); no aplicar quote otra vez.
-            val = (rec.itx_xml_data_id.qr_code or '').strip() if rec.itx_xml_data_id else ''
-            rec.l10n_do_dgii_report_has_qr = bool(val)
-            rec.l10n_do_dgii_report_qr_src = val
+    def _itx_dgii_qr_canonical_url(self):
+        self.ensure_one()
+        xml = self.itx_xml_data_id
+        if not xml:
+            return ''
+        return xml._canonical_qr_stamp_url() or ''
 
     @api.depends(
         'itx_xml_data_id',
         'itx_xml_data_id.qr_code',
+        'itx_xml_data_id.signed_xml',
+        'itx_xml_data_id.signature',
+    )
+    def _compute_itx_dgii_electronic_stamp(self):
+        for rec in self:
+            rec.itx_dgii_electronic_stamp = rec._itx_dgii_qr_canonical_url()
+
+    @api.depends('itx_dgii_electronic_stamp', 'itx_dgii_electronic_stamp_encoded')
+    def _compute_l10n_do_dgii_report_qr(self):
+        for rec in self:
+            canonical = (rec.itx_dgii_electronic_stamp or '').strip()
+            encoded = (rec.itx_dgii_electronic_stamp_encoded or '').strip()
+            rec.l10n_do_dgii_report_has_qr = bool(canonical)
+            rec.l10n_do_dgii_report_qr_src = encoded
+
+    @api.depends(
+        'itx_dgii_electronic_stamp',
         'is_ecf_invoice',
         'journal_id.is_dgii',
     )
     def _compute_qr_encoded(self):
+        from odoo.tools import urls
+
         _icp = self.env['ir.config_parameter'].sudo().get_param(ICP_DEBUG_REPORT_QR, 'False')
         debug_qr = str(_icp if _icp is not None else 'False').lower() in (
             '1',
@@ -116,17 +135,14 @@ class AccountMove(models.Model):
             'on',
         )
         for rec in self:
-            # Alias para el endpoint barcode: un solo nivel de codificación.
-            val = (
-                (rec.itx_xml_data_id.qr_code or '').strip()
-                if rec.itx_xml_data_id
-                else ''
+            canonical = (rec.itx_dgii_electronic_stamp or '').strip()
+            rec.itx_dgii_electronic_stamp_encoded = (
+                urls.url_quote_plus(canonical) if canonical else ''
             )
-            rec.itx_dgii_electronic_stamp_encoded = val
             j_dgii = getattr(rec.journal_id, 'is_dgii', False)
             if not (rec.is_ecf_invoice and j_dgii):
                 continue
-            if not val:
+            if not canonical:
                 xml = rec.itx_xml_data_id
                 _logger.info(
                     '[DGII][report_qr] sin sello usable en reporte | move_id=%s name=%s state=%s '
@@ -147,10 +163,11 @@ class AccountMove(models.Model):
                 )
             elif debug_qr:
                 _logger.info(
-                    '[DGII][report_qr] sello presente | move_id=%s stamp_len=%s head=%s',
+                    '[DGII][report_qr] sello presente | move_id=%s stamp_len=%s encoded_len=%s head=%s',
                     rec.id,
-                    len(val),
-                    (val[:120] + '...') if len(val) > 120 else val,
+                    len(canonical),
+                    len(rec.itx_dgii_electronic_stamp_encoded or ''),
+                    (canonical[:120] + '...') if len(canonical) > 120 else canonical,
                 )
 
 

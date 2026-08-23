@@ -3,11 +3,12 @@
 
     <template id="footer_main_do_ecf" inherit_id="itx_document_layout.external_layout_intrepidux">
         <xpath expr="//div[@name='itx_footer_qr_slot']" position="inside">
-            <t t-if="itx_intrepidux and is_l10n_do_invoice and o.itx_dgii_electronic_stamp">
+            <t t-if="itx_intrepidux and is_l10n_do_invoice and (o.l10n_do_dgii_report_has_qr or o.l10n_do_ecf_security_code or o.l10n_do_ecf_sign_date)">
                 <table class="itx-do-ecf-stamp" width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
                         <td width="22%" valign="middle" class="itx-do-ecf-stamp__qr">
-                            <img t-att-src="'/report/barcode/?barcode_type=QR&amp;width=140&amp;height=140&amp;value=' + o.itx_dgii_electronic_stamp"/>
+                            <img t-if="o.l10n_do_dgii_report_has_qr"
+                                 t-att-src="'/report/barcode/?barcode_type=QR&amp;width=140&amp;height=140&amp;value=' + o.l10n_do_dgii_report_qr_src"/>
                         </td>
                         <td width="48%" valign="middle" class="itx-do-ecf-stamp__info text-start">
                             <div class="itx-do-ecf-stamp__title">COMPROBANTE FISCAL ELECTRÓNICO (e-CF)</div>

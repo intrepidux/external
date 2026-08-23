@@ -48,8 +48,8 @@
         </xpath>
 
         <!-- QR in body only when not Intrepidux (footer slot). -->
-        <xpath expr="//t[@t-if='o.itx_dgii_electronic_stamp']" position="attributes">
-            <attribute name="t-if">o.itx_dgii_electronic_stamp and not itx_intrepidux</attribute>
+        <xpath expr="//t[@t-if='o.l10n_do_dgii_report_has_qr or o.l10n_do_ecf_security_code or o.l10n_do_ecf_sign_date']" position="attributes">
+            <attribute name="t-if">(o.l10n_do_dgii_report_has_qr or o.l10n_do_ecf_security_code or o.l10n_do_ecf_sign_date) and not itx_intrepidux</attribute>
         </xpath>
     </template>
 

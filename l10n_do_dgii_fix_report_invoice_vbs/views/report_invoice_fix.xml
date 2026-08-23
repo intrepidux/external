@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <!-- Layout fiscal DO (referencia v16) + QR DGII API (itx_dgii_electronic_stamp).
-         is_l10n_do_invoice: activa issuer_info, Impuestos DOP, firmas y oculta informations estándar. -->
+    <!-- Layout fiscal DO + QR DGII vía l10n_do_dgii_fe_base (no l10n_do_ecf_invoicing). -->
     <template id="report_invoice_document_ecf_fix"
               inherit_id="l10n_do_accounting.report_invoice_document_inherited"
               priority="20">
 
-        <!-- Ocultar el bloque de "Impuestos" en factura DO (evita Impuestos DOP, firmas y oculta informations estándar). -->
         <xpath expr="//t[@t-call='account.document_tax_totals_company_currency_template']" position="attributes">
             <attribute name="t-if">False</attribute>
         </xpath>
@@ -16,20 +14,26 @@
             <t t-set="is_l10n_do_invoice" t-value="o.company_id.country_id.code == 'DO' and (o.l10n_latam_use_documents or o.is_ecf_invoice)"/>
         </xpath>
 
-        <!-- Forzar que el bloque estándar de "informations" NO se muestre en factura DO (evita Origen/Referencia/Moneda/Tasa). -->
         <xpath expr="//div[@id='informations']" position="attributes">
             <attribute name="t-if">not is_l10n_do_invoice</attribute>
         </xpath>
 
-        <!-- Usar QR DGII API en el mismo bloque que ya mete l10n_do_accounting. -->
-        <xpath expr="//t[@t-if='o.l10n_do_electronic_stamp']" position="attributes">
-            <attribute name="t-if">o.itx_dgii_electronic_stamp_encoded</attribute>
-        </xpath>
-
-        <xpath expr="//img[contains(@t-att-src, 'o.l10n_do_electronic_stamp')]" position="attributes">
-            <attribute name="t-att-src">
-                &apos;/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=&apos; + o.itx_dgii_electronic_stamp_encoded if o.itx_dgii_electronic_stamp_encoded else &apos;&apos;
-            </attribute>
+        <!-- QR + sello: campos nativos de l10n_do_dgii_fe_base -->
+        <xpath expr="//img[contains(@t-att-src, 'barcode_type=QR')]/ancestor::t[1]" position="replace">
+            <t t-if="o.l10n_do_dgii_report_has_qr or o.l10n_do_ecf_security_code or o.l10n_do_ecf_sign_date">
+                <div t-if="o.l10n_do_dgii_report_has_qr">
+                    <img t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_dgii_report_qr_src"/>
+                </div>
+                <t t-if="o.l10n_do_ecf_security_code">
+                    <strong>Código de Seguridad:</strong>
+                    <span t-esc="o.l10n_do_ecf_security_code"/>
+                </t>
+                <br/>
+                <t t-if="o.l10n_do_ecf_sign_date">
+                    <strong>Fecha Firma Digital:</strong>
+                    <span t-esc="context_timestamp(o.l10n_do_ecf_sign_date).strftime('%d-%m-%Y %H:%M:%S')"/>
+                </t>
+            </t>
         </xpath>
 
     </template>

@@ -115,3 +115,4 @@ dmypy.json
 
 # Odoo module documentation
 l10n_do_webpos_fe_base/DOCUMENTATION.md
+l10n_do_webpos_fe_base/scripts/

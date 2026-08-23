@@ -1,6 +1,6 @@
 {
     "name": "Rep. Dom. — Document Layout Intrepidux",
-    "version": "17.0.1.0.7",
+    "version": "17.0.1.0.9",
     "category": "Localization",
     "summary": "Factura fiscal DO en marco Intrepidux (meta en article + QR footer)",
     "author": "Intrepidux",

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import api, models, _
+from odoo import models, _
 from odoo.exceptions import ValidationError
 
 
@@ -19,8 +19,8 @@ class AccountMove(models.Model):
         return super()._is_manual_document_number()
 
     def _check_l10n_latam_documents(self):
-        """Override to include electronic NCF types (e-informal, e-minor, etc.) 
-        in the validation, since base l10n_do_accounting only allows 
+        """Override to include electronic NCF types (e-informal, e-minor, etc.)
+        in the validation, since base l10n_do_accounting only allows
         ['minor', 'informal', 'exterior', False] but mode 'e' uses e-* variants.
         """
         validated_invoices = self.filtered(
@@ -43,7 +43,6 @@ class AccountMove(models.Model):
             and x.l10n_latam_manual_document_number
         )
 
-        # Allow all e-* electronic NCF types in addition to base types
         allowed_types = [
             "minor",
             "informal",

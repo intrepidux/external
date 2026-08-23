@@ -1,6 +1,6 @@
 {
     'name': 'L10n Do dgii fix report invoice VBS',
-    'version': '1.3',
+    'version': '1.5',
     'depends': [
         'account',
         'l10n_do_accounting',

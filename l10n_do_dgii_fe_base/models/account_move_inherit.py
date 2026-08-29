@@ -433,6 +433,42 @@ class AccountMove(models.Model):
                     % {'line': label}
                 )
 
+        # 2c. E44 (Régimen Especial): XSD Totales sin ITBIS gravado — solo MontoExento / adicionales.
+        try:
+            doc_ecf = self.doc_type_E(self)
+        except UserError:
+            doc_ecf = None
+        if doc_ecf == 'E44':
+            for line in product_lines:
+                if not line.tax_ids:
+                    continue
+                label = (
+                    self._dgii_plain_invoice_line_label(line)
+                    or (line.product_id.display_name if line.product_id else '')
+                    or _('línea')
+                )[:80]
+                bad_grav = line.tax_ids.filtered(lambda t: t.tipo_impuesto_dgii in gravado_tipos_dgii)
+                if bad_grav:
+                    errors.append(
+                        _(
+                            '- E44 (Régimen Especial): la línea "%(line)s" tiene impuesto(s) '
+                            'con ITBIS gravado (%(taxes)s). Use Exento (código 0), '
+                            'No facturable (código 4) o impuestos adicionales; no ITBIS 18%%, 16%% ni 0%% gravado.'
+                        )
+                        % {
+                            'line': label,
+                            'taxes': ', '.join(bad_grav.mapped('name'))[:200],
+                        }
+                    )
+            if not float_is_zero(self.amount_tax or 0.0, precision_rounding=rounding):
+                errors.append(
+                    _(
+                        '- E44 (Régimen Especial): la factura no puede llevar ITBIS '
+                        '(impuestos = %(tax)s). Asigne «ITBIS Exento» en todas las líneas.'
+                    )
+                    % {'tax': self.amount_tax}
+                )
+
         # 3. Validar impuestos verificados
         taxes = self.line_ids.tax_ids
         unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)

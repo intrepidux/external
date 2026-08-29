@@ -2,7 +2,7 @@
 <odoo>
 
     <template id="report_invoice_document_fix"
-              inherit_id="l10n_do_accounting.report_invoice_document_inherited">
+              inherit_id="l10n_do_accounting_indexa.report_invoice_document_inherited">
 
 
 
@@ -46,13 +46,13 @@
 
 
 
-        <!-- Ocultar QR y indicadores del módulo l10n_do_accounting -->
+        <!-- Ocultar QR y indicadores del módulo l10n_do_accounting_indexa -->
         <xpath expr="//div[@id='right-elements']/../following-sibling::div[@class='row']" position="replace" />
 
 
     </template>
 
-    <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting.external_layout_standard_inherited">
+    <template id="external_layout_standard_inherited" inherit_id="l10n_do_accounting_indexa.external_layout_standard_inherited">
 
         <xpath expr="//div[@class='text-center']" position="before">
             <div t-if="o and 'l10n_do_electronic_stamp' in o and o.l10n_do_electronic_stamp" style="text-align: left; margin-bottom: 10px;">

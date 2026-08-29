@@ -8,7 +8,7 @@
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "18.0.1.0.0",
+    'version': "18.0.1.0.1",
 
     # any module necessary for this one to work correctly
     'depends': ['base','account','l10n_do'],
@@ -16,6 +16,7 @@
     # always loaded
    'data': [
         'data/account_webpos_data.xml',
+        'data/ir_cron_webpos_followup.xml',
         'security/ir.model.access.csv',
         'views/account_journal_inherit.xml',
         'views/account_move_inherit.xml',

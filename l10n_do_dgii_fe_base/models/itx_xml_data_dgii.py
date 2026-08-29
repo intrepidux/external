@@ -1059,32 +1059,86 @@ class ItxXMLDataDGII(models.Model):
 
         return False
 
-    def save_and_send_xml(self):
+    def _dgii_is_non_retryable(self):
+        """Rechazo XSD/DGII: no reintentar en cron."""
+        self.ensure_one()
+        return self.status == 'error_no_enviado'
+
+    @api.model
+    def cron_dgii_followup(self):
+        """Verifica envíos pendientes y reintenta errores técnicos (no rechazos DGII)."""
+        cr = self.env.cr
+        batch_limit = 20
+
+        to_verify = self.search([
+            ('status', '=', 'sent'),
+            ('account_move_id.state', '=', 'posted'),
+        ], limit=batch_limit)
+        for rec in to_verify:
+            try:
+                rec.verify_sent_encf(raise_on_error=False)
+                cr.commit()
+            except Exception as e:
+                cr.rollback()
+                _logger.error('DGII cron verify failed for xml %s: %s', rec.id, e)
+
+        to_retry = self.search([
+            ('status', '=', 'error'),
+            ('account_move_id.state', '=', 'posted'),
+        ], limit=batch_limit)
+        for rec in to_retry:
+            if rec._dgii_is_non_retryable():
+                continue
+            try:
+                if rec.save_and_send_xml(raise_on_error=False) and rec.status == 'sent':
+                    if rec.track_id:
+                        rec.verify_sent_encf(raise_on_error=False)
+                cr.commit()
+            except Exception as e:
+                cr.rollback()
+                _logger.error('DGII cron resend failed for xml %s: %s', rec.id, e)
+
+    def save_and_send_xml(self, raise_on_error=True):
         '''
         Calls the new DGII API endpoint to submit invoice using certificate-based authentication.
         Builds invoice_data from Odoo record, sends to API for XML generation, signing, and DGII submission.
-        Returns track_id for async status tracking.
+        Returns True if submit succeeded (track_id), False on technical/business failure (unless raise_on_error).
         '''
         cre = self.company_id.fe_dgii_id
         cre = cre.filtered(lambda p: p.active)
         if not cre:
-            raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
+            msg = _('No hay ambiente activo configurado en esta compañia.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
 
         if cre._use_legacy_cert_in_request():
             if not cre.certificate_file or not cre.certificate_password:
-                raise UserError(
-                    _('Configure certificado y contraseña, o sincronice con la API.')
-                )
+                msg = _('Configure certificado y contraseña, o sincronice con la API.')
+                if raise_on_error:
+                    raise UserError(msg)
+                return False
         else:
-            cre._require_synced_for_prod()
+            try:
+                cre._require_synced_for_prod()
+            except UserError:
+                if raise_on_error:
+                    raise
+                return False
 
         if not cre.rnc:
-            raise UserError(_('No hay RNC configurado en la compañía.'))
+            msg = _('No hay RNC configurado en la compañía.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
 
         # Tipo e-CF desde la factura (name puede ser TEMP-{id})
         invoice = self.account_move_id
         if not invoice:
-            raise UserError(_('No hay factura vinculada a este registro XML.'))
+            msg = _('No hay factura vinculada a este registro XML.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         type_document = invoice.doc_type_E(invoice)
 
         # Debe coincidir con el XML: RFCE solo si plantilla RFCE (E32 < 250k DOP); si no, ECF.
@@ -1139,6 +1193,7 @@ class ItxXMLDataDGII(models.Model):
 
                 self._enrich_api_response_with_dgii_json_from_error(response_data)
                 self._apply_dgii_recepcion_from_submit(response_data)
+                return True
             else:
                 # Incluso con success=False el API suele devolver XML firmado (reintento / auditoría).
                 # DGII a veces devuelve HTTP 400/422 con JSON en el texto ``error`` sin ``dgii_recepcion``.
@@ -1197,8 +1252,7 @@ class ItxXMLDataDGII(models.Model):
                         self.id,
                         self.dgi_err_msg,
                     )
-                    # Do not raise: let caller (action_post) continue and surface error in record UI
-                    return response_data
+                    return False
 
                 # Rechazo explícito DGII (mismo tratamiento que XSD): UI en itx.xml.data.dgii / factura
                 if recoverable_rejection:
@@ -1220,38 +1274,59 @@ class ItxXMLDataDGII(models.Model):
                         self.id,
                         self.dgi_err_msg, # Use the already set or newly set dgi_err_msg
                     )
-                    return response_data
+                    return False
 
-                # Non-validation error: escalate as UserError (connection/auth/etc.)
+                # Non-validation error: persist technical error
                 error_msg = final_user_message or (\
                     f"Error desconocido (status={response_data.get('status')})"\
                     if response_data.get('status') else 'Error desconocido'\
                 )
                 _logger.error('Error al enviar XML a DGII: %s', error_msg)
-                self.dgi_err_msg = error_msg # Ensure this is also updated
-                raise UserError(_('Error al enviar a DGII: %s') % error_msg)
+                self.status = 'error'
+                self.dgi_err_msg = error_msg
+                if raise_on_error:
+                    raise UserError(_('Error al enviar a DGII: %s') % error_msg)
+                return False
 
         except requests.exceptions.Timeout:
             self.status = 'error'
             _logger.error('Timeout al enviar XML a DGII')
-            raise UserError(_('Timeout: La API DGII no respondió en 30 segundos'))
+            msg = _('Timeout: La API DGII no respondió en 30 segundos')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.ConnectionError:
             self.status = 'error'
-            _logger.error('Error de conexión con la API DGII en %s', api_url)
-            raise UserError(_('Error de conexión: No se pudo conectar a la API DGII en %s') % api_url)
+            _logger.error('Error de conexión con la API DGII')
+            msg = _('Error de conexión: No se pudo conectar a la API DGII')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.RequestException as e:
             self.status = 'error'
             _logger.error('Error en la conexión a la API DGII: %s', str(e))
-            raise UserError(_('Error en la conexión a la API DGII: %s') % str(e))
+            msg = _('Error en la conexión a la API DGII: %s') % str(e)
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except json.JSONDecodeError as e:
             self.status = 'error'
             _logger.error('Respuesta JSON inválida de la API DGII: %s', str(e))
-            raise UserError(_('Respuesta JSON inválida de la API DGII'))
+            msg = _('Respuesta JSON inválida de la API DGII')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
+        except UserError:
+            if raise_on_error:
+                raise
+            self.status = 'error'
+            return False
           
-    def verify_sent_encf(self):
+    def verify_sent_encf(self, raise_on_error=True):
         '''
         Calls the new DGII API endpoint to check invoice status using track_id
         with certificate-based authentication.
+        Returns True if verify call completed, False on pending/timeout (unless raise_on_error).
         '''
         if not self.track_id:
             raw = self.json_response_sent
@@ -1262,21 +1337,33 @@ class ItxXMLDataDGII(models.Model):
                     sent = {}
                 if isinstance(sent, dict) and sent.get('success'):
                     self._apply_dgii_recepcion_from_submit(sent)
-                    return
-            raise UserError(_('No hay track_id disponible. Primero debe enviar el XML a DGII.'))
+                    return True
+            msg = _('No hay track_id disponible. Primero debe enviar el XML a DGII.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
 
         cre = self.company_id.fe_dgii_id
         cre = cre.filtered(lambda p: p.active)
         if not cre:
-            raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
+            msg = _('No hay ambiente activo configurado en esta compañia.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
 
         if cre._use_legacy_cert_in_request():
             if not cre.certificate_file or not cre.certificate_password:
-                raise UserError(
-                    _('Configure certificado o sincronice con la API.')
-                )
+                msg = _('Configure certificado o sincronice con la API.')
+                if raise_on_error:
+                    raise UserError(msg)
+                return False
         else:
-            cre._require_synced_for_prod()
+            try:
+                cre._require_synced_for_prod()
+            except UserError:
+                if raise_on_error:
+                    raise
+                return False
 
         payload = cre._api_params_with_auth({'track_id': self.track_id})
 
@@ -1288,17 +1375,15 @@ class ItxXMLDataDGII(models.Model):
                 timeout=30,
             )
 
-            # Store the full response
             self.json_response = json.dumps(response_data)
 
-            # Check for API errors
             if not response_data.get('success'):
                 error_msg = response_data.get('error', 'Error desconocido')
                 _logger.error('API returned error: %s', error_msg)
-                # Don't mark as error - might be still processing
-                raise UserError(_('Error al verificar estado: %s') % error_msg)
+                if raise_on_error:
+                    raise UserError(_('Error al verificar estado: %s') % error_msg)
+                return False
 
-            # Consulta DGII: prevalece dgii_status/estado real (no status técnico CHECKED/ACCEPTED).
             self._enrich_api_response_with_dgii_json_from_error(response_data)
 
             if response_data.get('signed_xml'):
@@ -1374,18 +1459,36 @@ class ItxXMLDataDGII(models.Model):
                         list(invoice_updates.keys()),
                     )
 
+            return True
+
         except requests.exceptions.Timeout:
             _logger.error('Timeout al verificar estado en DGII')
-            raise UserError(_('Timeout: La API DGII no respondió en 30 segundos'))
+            msg = _('Timeout: La API DGII no respondió en 30 segundos')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.ConnectionError:
-            _logger.error('Error de conexión con la API DGII en %s', api_url)
-            raise UserError(_('Error de conexión: No se pudo conectar a la API DGII en %s') % api_url)
+            _logger.error('Error de conexión con la API DGII')
+            msg = _('Error de conexión: No se pudo conectar a la API DGII')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.RequestException as e:
             _logger.error('Error en la conexión a la API DGII: %s', str(e))
-            raise UserError(_('Error en la conexión a la API DGII: %s') % str(e))
+            msg = _('Error en la conexión a la API DGII: %s') % str(e)
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except json.JSONDecodeError as e:
             _logger.error('Respuesta JSON inválida de la API DGII: %s', str(e))
-            raise UserError(_('Respuesta JSON inválida de la API DGII'))
+            msg = _('Respuesta JSON inválida de la API DGII')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
+        except UserError:
+            if raise_on_error:
+                raise
+            return False
 
     def action_resend_xml(self):
         # Lógica para reenviar el XML

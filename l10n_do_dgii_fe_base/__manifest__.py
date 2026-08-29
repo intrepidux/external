@@ -12,7 +12,7 @@
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "17.0.1.0.17",
+    'version': "17.0.1.0.18",
 
 
     # any module necessary for this one to work correctly
@@ -21,6 +21,7 @@
     # always loaded
    'data': [
         'data/account_dgii_data.xml',
+        'data/ir_cron_dgii_followup.xml',
         'data/res_country_state_data.xml',
         'data/res.municipality.csv',
         'security/ir.model.access.csv',

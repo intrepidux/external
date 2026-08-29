@@ -558,27 +558,64 @@ class AccountMove(models.Model):
         return xml_data
 
 
-    def _is_l10n_do_dgii_allowed_document(self):
+    def _dgii_ecf_type_code(self):
+        """Código numérico e-CF (31, 32, …) desde tipo LATAM E## o e-NCF."""
         self.ensure_one()
-        if not self.is_ecf_invoice or not self.journal_id.is_dgii:
-            return False
+        import re
 
-        # Tipo desde el tipo de documento latino (no desde el número: puede ser TEMP-{id})
-        doc_type = self.l10n_latam_document_type_id
-        if not doc_type:
-            return False
-        prefix = doc_type.doc_code_prefix or ''
-        if not prefix.startswith('E') or len(prefix) < 3:
-            return False
-        tipo_ecf = prefix[1:3]
+        latam_dt = self.l10n_latam_document_type_id
+        if latam_dt and getattr(latam_dt, 'doc_code_prefix', None):
+            prefix = (latam_dt.doc_code_prefix or '').strip()
+            match = re.match(r'^E(\d{2})', prefix, re.I)
+            if match:
+                return match.group(1)
 
+        ncf = (self.l10n_latam_document_number or '').strip()
+        if ncf.upper().startswith('E') and len(ncf) >= 3:
+            return ncf[1:3]
+        return None
+
+    def _is_dgii_candidate_for_post(self):
+        """Pre-post: diario DGII + tipo e-CF permitido (sin exigir NCF asignado)."""
+        self.ensure_one()
+        if not self.journal_id.is_dgii:
+            return False
+        tipo_ecf = self._dgii_ecf_type_code()
+        if not tipo_ecf:
+            return False
         flujo = "ventas" if self.move_type.startswith("out_") else "compras"
-
         if flujo == "ventas":
             return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES
         if flujo == "compras":
             return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
         return False
+
+    def _is_l10n_do_dgii_allowed_document(self):
+        """Post-send: candidato DGII + e-NCF real (no TEMP-)."""
+        self.ensure_one()
+        if not self._is_dgii_candidate_for_post():
+            return False
+        ncf = (self.l10n_latam_document_number or '').strip()
+        if not ncf or ncf.startswith('TEMP-'):
+            return False
+        return True
+
+    def _validate_dgii_ready_to_send(self):
+        """Config DGII obligatoria antes de postear (0 HTTP)."""
+        self.ensure_one()
+        cre = self.company_id.fe_dgii_id.filtered(lambda p: p.active)
+        if not cre:
+            raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
+        cre = cre[:1]
+        if cre._use_legacy_cert_in_request():
+            if not cre.certificate_file or not cre.certificate_password:
+                raise UserError(
+                    _('Configure certificado y contraseña, o sincronice con la API.')
+                )
+        else:
+            cre._require_synced_for_prod()
+        if not cre.rnc:
+            raise UserError(_('No hay RNC configurado en la compañía.'))
 
     def _dgii_e32_is_rfce_simplified(self):
         """
@@ -588,67 +625,73 @@ class AccountMove(models.Model):
         self.ensure_one()
         return self._dgii_amount_total_in_dop() < 250000.0
 
+    def _dgii_send_and_verify(self, raise_on_error=False):
+        """Envío y verificación DGII tras postear (I/O sin rollback del asiento)."""
+        self.ensure_one()
+        from .itx_xml_data_dgii import ensure_xml_filename
+
+        doc_type = self.doc_type_E(self)
+        xml_content, xml_name = self.build_xml_to_print(self, doc_type)
+
+        xml_record = self.itx_xml_data_id
+        if xml_record:
+            xml_record.write({
+                'xml_data': xml_content,
+                'name': ensure_xml_filename(xml_name),
+            })
+        else:
+            xml_record = self.create_xml_data(self, xml_content, xml_name)
+
+        sent_ok = xml_record.save_and_send_xml(raise_on_error=raise_on_error)
+        if not sent_ok:
+            if not raise_on_error:
+                msg = xml_record.dgi_err_msg or _('Error al enviar a DGII')
+                self.message_post(body=_('e-CF DGII no enviado: %s') % msg)
+            return False
+
+        if xml_record.status == 'sent' and xml_record.track_id:
+            verify_ok = xml_record.verify_sent_encf(raise_on_error=raise_on_error)
+            if not verify_ok and not raise_on_error:
+                _logger.warning(
+                    'DGII verify pending or failed for invoice %s (xml %s)',
+                    self.id,
+                    xml_record.id,
+                )
+
+        if (
+            self.l10n_latam_document_number
+            and self.l10n_latam_document_number.startswith('TEMP-')
+        ):
+            document_number = self.l10n_do_fiscal_sequence_id.get_fiscal_number()
+            self.write({
+                'l10n_latam_document_number': document_number,
+                'payment_reference': f'{self.name} - {document_number}',
+            })
+            if self.itx_xml_data_id:
+                self.itx_xml_data_id.name = ensure_xml_filename(
+                    f'{doc_type}_{document_number}.xml'
+                )
+
+        try:
+            self.xml_print_to_std(xml_content)
+        except Exception as e:
+            _logger.warning('xml_print_to_std failed for invoice %s: %s', self.id, e)
+
+        return sent_ok
+
     def action_post(self):
-        # Primero, ejecutar el método original para crear el asiento contable.
-        # Esto es necesario para que los campos de la factura estén correctamente
-        # establecidos antes de cualquier validación o lógica específica de DGII.
+        dgii_moves = self.filtered(lambda m: m._is_dgii_candidate_for_post())
+        for invoice in dgii_moves:
+            invoice._validate_dgii_invoice()
+            invoice._validate_dgii_ready_to_send()
+            invoice.doc_type_E(invoice)
+
         res = super(AccountMove, self).action_post()
 
-        # Obtener las facturas (self puede ser un recordset de una o varias facturas)
-        invoices = self.env["account.move"].browse(self.ids)
-
-        for invoice in invoices:
-            if not invoice._is_l10n_do_dgii_allowed_document():
-                _logger.debug(
-                    "DGII skipped for invoice %s: document type not allowed for DGII",
-                    invoice.id,
-                )
-                continue
-            # Validar antes de confirmar (solo para DGII y solo si es un documento permitido)
-            # Esta validación ahora ocurre después de que la factura ha sido 'posteada' por el super
-            invoice._validate_dgii_invoice()
-
-            doc_type = invoice.doc_type_E(invoice)
-            xml_content, xml_name = invoice.build_xml_to_print(invoice, doc_type)
-            xml_data = xml_content
-            try:
-                execute_EF = invoice.create_xml_data(invoice, xml_data, xml_name)
-                # Las validaciones duplicadas aquí se eliminan ya que _validate_dgii_invoice() las maneja
-                execute_EF.save_and_send_xml()
-                # Only verify with DGII if the submit succeeded and a track_id is available.
-                # In case of XSD/validation failures the save_and_send_xml stores the error
-                # on the itx.xml.data.dgii record and does NOT raise.
-                if getattr(execute_EF, 'status', None) == 'sent' and getattr(execute_EF, 'track_id', False):
-                    try:
-                        execute_EF.verify_sent_encf()
-                    except Exception as e:
-                        # Log and continue: verification can fail independently and should not
-                        # block invoice posting flow here.
-                        _logger.warning("DGII verification failed for invoice %s: %s", invoice.id, str(e))
-                if (
-                    invoice.l10n_latam_document_number
-                    and invoice.l10n_latam_document_number.startswith("TEMP-")
-                ):
-                    document_number = (
-                        invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                    )
-                    invoice.write(
-                        {
-                            "l10n_latam_document_number": document_number,
-                            "payment_reference": f"{invoice.name} - {document_number}",
-                        }
-                    )
-                    if invoice.itx_xml_data_id:
-                        from .itx_xml_data_dgii import ensure_xml_filename
-                        invoice.itx_xml_data_id.name = ensure_xml_filename(
-                            f'{doc_type}_{document_number}.xml'
-                        )
-            except Exception as e:
-                raise UserError(
-                    _("Error al crear el documento Electronico: %s") % str(e)
-                )
-            invoice.xml_print_to_std(xml_content)
-
+        for invoice in dgii_moves.exists().filtered(
+            lambda m: m._is_l10n_do_dgii_allowed_document()
+        ):
+            invoice._dgii_send_and_verify(raise_on_error=False)
 
         return res
 
@@ -1497,71 +1540,48 @@ class AccountMove(models.Model):
         self.itx_xml_data_id.action_verify_sent_encf()
 
     def action_manual_resend_dgii(self):
-        """
-        Manual action to resend DGII documents that were not processed initially.
-        This method performs the complete DGII sending process:
-        1. Validates invoice eligibility
-        2. Creates XML data if it doesn't exist
-        3. Sends XML to DGII API
-        4. Verifies the sent document
-        """
+        """Reenvío manual: validación completa + send/verify con raise_on_error."""
         self.ensure_one()
 
-        # Validate invoice eligibility for DGII
-        if not (self.is_ecf_invoice and self.journal_id.is_dgii and self.l10n_latam_document_number and self.journal_id.l10n_latam_use_documents):
-            raise UserError(_('Esta factura no es elegible para envío DGII. Debe ser una factura electrónica en un diario DGII con número fiscal válido.'))
+        if not (
+            self.journal_id.is_dgii
+            and self.l10n_latam_document_number
+            and getattr(self.journal_id, 'l10n_latam_use_documents', False)
+        ):
+            raise UserError(
+                _(
+                    'Esta factura no es elegible para envío DGII. '
+                    'Debe estar en un diario DGII con documentos fiscales y número e-NCF.'
+                )
+            )
 
-        # Check document type validation using the new unified method
         if not self._is_l10n_do_dgii_allowed_document():
+            tipo = self._dgii_ecf_type_code() or 'N/A'
             raise UserError(
                 _(
                     "El tipo de documento %s (%s) no está permitido en el diario %s para el flujo de %s."
                 )
                 % (
                     self.l10n_latam_document_type_id.name,
-                    self.l10n_latam_document_number[1:3]
-                    if self.l10n_latam_document_number
-                    else "N/A",
+                    tipo,
                     self.journal_id.name,
                     "ventas" if self.move_type.startswith("out_") else "compras",
                 )
             )
 
-        try:
-            # Create XML data if it doesn't exist
-            if not self.itx_xml_data_id:
-                _logger.info("Creating XML data for manual DGII resend of invoice %s", self.id)
-                doc_type = self.doc_type_E(self)
-                xml_content, xml_name = self.build_xml_to_print(self, doc_type)
+        self._validate_dgii_invoice()
+        self._validate_dgii_ready_to_send()
+        self._dgii_send_and_verify(raise_on_error=True)
 
-                self.create_xml_data(self, xml_content, xml_name)
-            else:
-                _logger.info("Using existing XML data for manual DGII resend of invoice %s", self.id)
-
-            # Send XML to DGII
-            _logger.info("Sending XML to DGII for invoice %s", self.id)
-            self.itx_xml_data_id.save_and_send_xml()
-
-            # Verify sent document
-            _logger.info("Verifying sent document for invoice %s", self.id)
-            self.itx_xml_data_id.verify_sent_encf()
-
-            # Log success
-            _logger.info("Manual DGII resend completed successfully for invoice %s", self.id)
-
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Éxito'),
-                    'message': _('Documento reenviado exitosamente a DGII.'),
-                    'type': 'success',
-                }
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Éxito'),
+                'message': _('Documento reenviado exitosamente a DGII.'),
+                'type': 'success',
             }
-
-        except Exception as e:
-            _logger.error("Error in manual DGII resend for invoice %s: %s", self.id, str(e))
-            raise UserError(_('Error al reenviar documento a DGII: %s') % str(e))
+        }
 
 
     # fin mapeo funciones heredadas de itx_xml_data_id

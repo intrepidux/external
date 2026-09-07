@@ -140,14 +140,65 @@ class MyXMLData(models.Model):
         }
 
 
-    def save_and_send_xml(self):
+    def _webpos_is_business_rejection(self):
+        """True si WebPOS recibió el XML pero lo rechazó (no reintentar en cron)."""
+        self.ensure_one()
+        raw = self.json_response_sent
+        if not raw:
+            return False
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return False
+        if not isinstance(data, dict):
+            return False
+        return bool(data.get('received')) and not data.get('accepted')
+
+    @api.model
+    def cron_webpos_followup(self):
+        """Verifica envíos pendientes y reintenta errores técnicos (no rechazos de negocio)."""
+        cr = self.env.cr
+        batch_limit = 20
+
+        to_verify = self.search([
+            ('status', '=', 'sent'),
+            ('account_move_id.state', '=', 'posted'),
+        ], limit=batch_limit)
+        for rec in to_verify:
+            try:
+                rec.verify_sent_encf(raise_on_error=False)
+                cr.commit()
+            except Exception as e:
+                cr.rollback()
+                _logger.error('WebPOS cron verify failed for xml %s: %s', rec.id, e)
+
+        to_retry = self.search([
+            ('status', '=', 'error'),
+            ('account_move_id.state', '=', 'posted'),
+        ], limit=batch_limit)
+        for rec in to_retry:
+            if rec._webpos_is_business_rejection():
+                continue
+            try:
+                if rec.save_and_send_xml(raise_on_error=False) and rec.status == 'sent':
+                    rec.verify_sent_encf(raise_on_error=False)
+                cr.commit()
+            except Exception as e:
+                cr.rollback()
+                _logger.error('WebPOS cron resend failed for xml %s: %s', rec.id, e)
+
+    def save_and_send_xml(self, raise_on_error=True):
         ''' 
         Refactored: Calls the webpos_api endpoint to send XML and updates the record with the response.
+        Returns True if accepted by WebPOS, False on technical/business failure (unless raise_on_error).
         '''
         cre = self.company_id.fe_webpos_id     
         cre = cre.filtered(lambda p: p.active)
         if not cre:
-            raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
+            msg = _('No hay ambiente activo configurado en esta compañia.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
          
         api_credentials = {
             'url_base': cre.url_base,
@@ -157,7 +208,10 @@ class MyXMLData(models.Model):
         }
         xml_content = self.xml_data if self.xml_data else ""
         if not xml_content:
-            raise UserError(_('No hay datos XML para enviar.'))
+            msg = _('No hay datos XML para enviar.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
 
         # Get the API URL from system parameters or use default
         api_base_url = self.env['ir.config_parameter'].sudo().get_param('webpos_api.base_url', 'http://localhost:8069')
@@ -188,50 +242,77 @@ class MyXMLData(models.Model):
                 error_details = response_jsonrpc['error']
                 _logger.error('API returned JSON-RPC error: %s', error_details)
                 self.status = 'error'
-                raise UserError(_('API Error: %s') % error_details.get('message', 'Unknown JSON-RPC error'))
+                msg = _('API Error: %s') % error_details.get('message', 'Unknown JSON-RPC error')
+                if raise_on_error:
+                    raise UserError(msg)
+                return False
             
             # Process result
             response_data = response_jsonrpc.get('result', {})
             
             # Update record based on response
-            if response_data.get('received') == True and response_data.get('accepted') == True:
+            if response_data.get('received') is True and response_data.get('accepted') is True:
                 self.status = 'sent'
                 _logger.info("XML enviado exitosamente: %s", self.name)
                 self.json_response_sent = json.dumps(response_data)
-            else:
-                self.status = 'error'
-                self.json_response_sent = json.dumps(response_data)
-                _logger.error('Error al enviar XML: %s', response_data)
-                self.dgi_err_msg = response_data.get("dgiErrMsg")
+                return True
+
+            self.status = 'error'
+            self.json_response_sent = json.dumps(response_data)
+            _logger.error('Error al enviar XML: %s', response_data)
+            self.dgi_err_msg = response_data.get("dgiErrMsg")
+            msg = self.dgi_err_msg or _('Documento rechazado por WebPOS')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
                 
         except requests.exceptions.Timeout:
             self.status = 'error'
             _logger.error('Timeout al enviar XML')
-            raise UserError(_('Timeout: La API no respondió en 30 segundos'))
+            msg = _('Timeout: La API no respondió en 30 segundos')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.ConnectionError:
             self.status = 'error'
             _logger.error('Error de conexión con la API en %s', api_url)
-            raise UserError(_('Error de conexión: No se pudo conectar a la API en %s') % api_url)
+            msg = _('Error de conexión: No se pudo conectar a la API en %s') % api_url
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.RequestException as e:
             self.status = 'error'
             _logger.error('Error en la conexión a la API: %s', str(e))
-            raise UserError(_('Error en la conexión a la API: %s') % str(e))
+            msg = _('Error en la conexión a la API: %s') % str(e)
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except json.JSONDecodeError as e:
             self.status = 'error'
             _logger.error('Respuesta JSON inválida de la API: %s', str(e))
-            raise UserError(_('Respuesta JSON inválida de la API'))
+            msg = _('Respuesta JSON inválida de la API')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
           
-    def verify_sent_encf(self):
+    def verify_sent_encf(self, raise_on_error=True):
         ''' 
         Refactored: Calls the webpos_api endpoint to verify document status and updates the record with the response.
+        Returns True when verification data is received.
         '''
         document_number = self.account_move_id.l10n_latam_document_number
         if not document_number:
-            raise UserError("El número de documento no está definido.")
+            msg = _("El número de documento no está definido.")
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         cre = self.company_id.fe_webpos_id     
         cre = cre.filtered(lambda p: p.active)
         if not cre:
-            raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
+            msg = _('No hay ambiente activo configurado en esta compañia.')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
             
         api_credentials = {
             'url_base': cre.url_base,
@@ -273,7 +354,10 @@ class MyXMLData(models.Model):
                 error_details = response_data['error']
                 _logger.error('API returned error: %s', error_details)
                 self.status = 'error'
-                raise UserError(_('API Error: %s') % error_details)
+                msg = _('API Error: %s') % error_details
+                if raise_on_error:
+                    raise UserError(msg)
+                return False
             
             if response_data:
                 self.status = 'procesed'
@@ -318,48 +402,63 @@ class MyXMLData(models.Model):
                 self.dgi_status = response_data.get('dgiStatus')
 
                 # Update invoice fields for electronic webpos invoices
-                if self.account_move_id and self.account_move_id.is_ecf_invoice and self.account_move_id.journal_id.is_webpos:
+                move = self.account_move_id
+                if move and move.journal_id.is_webpos and move._webpos_is_ecf_invoice():
                     invoice_updates = {}
                     if response_data.get('qrL1'):  # Security code
-                        # Extract code part after the colon
                         security_code = response_data.get('qrL1').split(': ', 1)[1] if ': ' in response_data.get('qrL1') else response_data.get('qrL1')
-                        invoice_updates['l10n_do_ecf_security_code'] = security_code
+                        if 'l10n_do_ecf_security_code' in move._fields:
+                            invoice_updates['l10n_do_ecf_security_code'] = security_code
                     if response_data.get('qrL2'):  # Sign date
                         try:
-                            # Parse the date string to datetime object
                             from datetime import datetime
-                            # Extract date part after the colon
                             date_str = response_data.get('qrL2').split(': ', 1)[1] if ': ' in response_data.get('qrL2') else response_data.get('qrL2')
                             sign_date = datetime.strptime(date_str, '%d-%m-%Y %H:%M:%S')
-                            invoice_updates['l10n_do_ecf_sign_date'] = sign_date
+                            if 'l10n_do_ecf_sign_date' in move._fields:
+                                invoice_updates['l10n_do_ecf_sign_date'] = sign_date
                         except (ValueError, TypeError, IndexError):
                             _logger.warning("Could not parse sign date: %s", response_data.get('qrL2'))
 
-
                     if invoice_updates:
-                        self.account_move_id.write(invoice_updates)
-                        _logger.info("Updated invoice %s with verification data: %s", self.account_move_id.id, invoice_updates)
-            else:
-                self.status = 'error'
-                self.json_response = json.dumps(response_data)
-                _logger.error('No se recibieron datos en la respuesta de verificación')
+                        move.write(invoice_updates)
+                        _logger.info("Updated invoice %s with verification data: %s", move.id, invoice_updates)
+                return True
+
+            self.status = 'error'
+            self.json_response = json.dumps(response_data)
+            _logger.error('No se recibieron datos en la respuesta de verificación')
+            if raise_on_error:
+                raise UserError(_('No se recibieron datos en la respuesta de verificación'))
+            return False
                 
         except requests.exceptions.Timeout:
             self.status = 'error'
             _logger.error('Timeout al verificar XML')
-            raise UserError(_('Timeout: La API no respondió en 30 segundos'))
+            msg = _('Timeout: La API no respondió en 30 segundos')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.ConnectionError:
             self.status = 'error'
             _logger.error('Error de conexión con la API en %s', api_url)
-            raise UserError(_('Error de conexión: No se pudo conectar a la API en %s') % api_url)
+            msg = _('Error de conexión: No se pudo conectar a la API en %s') % api_url
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except requests.exceptions.RequestException as e:
             self.status = 'error'
             _logger.error('Error en la conexión a la API: %s', str(e))
-            raise UserError(_('Error en la conexión a la API: %s') % str(e))
+            msg = _('Error en la conexión a la API: %s') % str(e)
+            if raise_on_error:
+                raise UserError(msg)
+            return False
         except json.JSONDecodeError as e:
             self.status = 'error'
             _logger.error('Respuesta JSON inválida de la API: %s', str(e))
-            raise UserError(_('Respuesta JSON inválida de la API'))
+            msg = _('Respuesta JSON inválida de la API')
+            if raise_on_error:
+                raise UserError(msg)
+            return False
 
     def action_resend_xml(self):
         # Lógica para reenviar el XML

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_move_form_webpos_bmc" model="ir.ui.view">
+        <field name="name">account.move.form.webpos.bmc</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="l10n_do_webpos_fe_base.itx_account_move_inherit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='dgi_status']" position="attributes">
+                <attribute name="attrs">{'invisible': ['|', ('journal_is_webpos', '=', False), ('is_ecf_invoice', '=', False)]}</attribute>
+            </xpath>
+            <xpath expr="//field[@name='dgi_status']" position="after">
+                <field name="l10n_do_ecf_sign_date" attrs="{
+                    'invisible': ['|', ('journal_is_webpos', '=', False), ('is_ecf_invoice', '=', False)]
+                }"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -4,6 +4,7 @@ import io
 import os
 import requests
 import json
+from urllib.parse import quote
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
@@ -75,6 +76,11 @@ class AccountMove(models.Model):
 
     xml_data_id = fields.Many2one('my.xml.data', string='My XML Data')
 
+    journal_is_webpos = fields.Boolean(
+        related='journal_id.is_webpos',
+        string='Diario WebPOS',
+    )
+
     l10n_do_itbis_tax_group_id = fields.Many2one(
         'account.tax.group',
         string='ITBIS Tax Group',
@@ -95,10 +101,6 @@ class AccountMove(models.Model):
     dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=True)
     # json_response = fields.Text(related='xml_data_id.json_response', string='Json Response')  # Descomentar si es necesario
 
-    # Campos para facturación electrónica WebPOS
-    l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
-    l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
-
     # Campo para sello electrónico QR WebPOS (related para consistencia)
     l10n_do_webpos_electronic_stamp = fields.Char(
         related='xml_data_id.qr_code',
@@ -108,36 +110,246 @@ class AccountMove(models.Model):
     )
 
 
-
-    # Campo computado para determinar si es factura electrónica (compatible con ambas versiones)
-    is_ecf_invoice = fields.Boolean(
-        string="Is Electronic Invoice",
-        compute="_compute_is_ecf_invoice",
-        store=False,  # No almacenar para compatibilidad
-        help="Computed field to determine if invoice is electronic (e-NCF) based on document type"
+    l10n_do_webpos_electronic_stamp_encoded = fields.Char(
+        compute="_compute_qr_encoded"
     )
+
+    @api.depends('l10n_do_webpos_electronic_stamp')
+    def _compute_qr_encoded(self):
+        for rec in self:
+            rec.l10n_do_webpos_electronic_stamp_encoded = quote(rec.l10n_do_webpos_electronic_stamp or '')
+
+
 
     #fin mapeo campos my.xml.data
 
+    def _webpos_is_ecf_invoice(self):
+        """True when the move is an electronic (e-NCF) document for WebPOS."""
+        self.ensure_one()
+        if (
+            self.l10n_latam_document_type_id
+            and getattr(self.l10n_latam_document_type_id, 'doc_code_prefix', None)
+        ):
+            prefix = self.l10n_latam_document_type_id.doc_code_prefix or ''
+            if prefix.startswith('E'):
+                return True
+        ncf = (self.l10n_latam_document_number or '').strip().upper()
+        if ncf.startswith('E') and len(ncf) >= 3:
+            return True
+        return bool(
+            getattr(self.company_id, 'l10n_do_ecf_issuer', False)
+            and self.country_code == 'DO'
+        )
 
+    def _get_webpos_fiscal_document_number(self):
+        """Hook: assign real e-NCF when posting used a TEMP- placeholder."""
+        self.ensure_one()
+        if hasattr(self, 'l10n_do_fiscal_sequence_id') and self.l10n_do_fiscal_sequence_id:
+            return self.l10n_do_fiscal_sequence_id.get_fiscal_number()
+        return False
 
-    def _compute_is_ecf_invoice(self):
-        """Compute is_ecf_invoice based on document type (compatible with both versions)"""
-        for record in self:
-            # Check if l10n_latam_document_type_id exists and has doc_code_prefix
-            if (hasattr(record, 'l10n_latam_document_type_id') and
-                record.l10n_latam_document_type_id and
-                hasattr(record.l10n_latam_document_type_id, 'doc_code_prefix')):
-                # If document type code starts with 'E', it's an electronic invoice
-                doc_code = record.l10n_latam_document_type_id.doc_code_prefix or ''
-                record.is_ecf_invoice = doc_code.startswith('E')
+    def _get_fiscal_rate(self):
+        '''
+        Ejemplos:
+        - Compañía base DOP, factura USD: retorna ~60.0
+        - Compañía base USD, factura USD: retorna ~60.0
+        - Compañía base DOP, factura DOP: retorna 1.0
+        
+        '''
+        self.ensure_one()
+        # 1. Si la factura es en DOP, no hay nada que hacer
+        if self.currency_id.name == 'DOP':
+            return 1.0
+            
+        # 2. Optimización: Si la compañía es DOP, el inverse_rate ya es lo que buscamos
+        if self.company_id.currency_id.name == 'DOP':
+            return  round(self.currency_id.inverse_rate or 1.0, 4)
+
+        # 3. Caso "No hay de otra": La compañía no es DOP, calculamos relación relativa
+        currency_dop = self.env.ref('base.DOP', raise_if_not_found=False) or \
+                       self.env['res.currency'].search([('name', '=', 'DOP')], limit=1)
+        
+        if currency_dop and self.currency_id.rate:
+            # (Unidades de DOP por 1 unidad base) / (Unidades de moneda factura por 1 unidad base)
+            return  round(currency_dop.rate / self.currency_id.rate, 4)
+            
+        return  round(self.currency_id.inverse_rate or 1.0, 4)
+
+    def get_clean_description(self, line):
+        """Obtiene descripción limpia del producto truncada a 80 caracteres para DGII.
+        
+        Si el usuario modificó manualmente la descripción, la respetamos.
+        Si es la descripción automática de Odoo, usamos el nombre del producto 
+        para evitar códigos de referencia o formatos internos.
+        """
+        product = line.product_id
+        line_name = line.name or ''
+        
+        # Solo procesar si la línea es de tipo 'product'
+        if line.display_type != 'product':
+            return '' # No enviar secciones o notas al API
+
+        if product:
+            product_name = product.name or ''
+            # Si el nombre del producto está contenido en la línea, 
+            # es probable que sea la descripción automática (ej: "[REF] Producto")
+            # En ese caso, preferimos el nombre limpio del producto.
+            if product_name in line_name:
+                description = product_name
             else:
-                # Fallback: if we can't determine from document type, check company settings
-                # This maintains compatibility with the original Adel logic
-                record.is_ecf_invoice = (
-                    record.company_id.l10n_do_ecf_issuer and
-                    record.country_code == "DO"
+                # Si el usuario cambió la descripción y ya no coincide con el nombre 
+                # del producto, respetamos su cambio manual.
+                description = line_name
+        else:
+            description = line_name
+
+        # Truncar a 80 caracteres para cumplimiento DGII
+        if len(description) > 80:
+            description = description[:77] + '...'
+
+        return description
+
+    def _get_webpos_ecf_modification_code(self, invoice):
+        """
+        Calculate automatically the e-CF modification code for WebPOS API.
+
+        WebPOS API only accepts codes 1 and 3:
+        - "1" = Total Cancellation (when credit note amount == original invoice amount)
+        - "3" = Amount correction (when credit note amount < original invoice amount)
+
+        This method works independently of any localization field.
+        """
+        # Only apply to credit notes (out_refund) and debit notes (out_debit)
+        if invoice.move_type not in ('out_refund', 'out_debit'):
+            return ''
+
+        # Get the original invoice
+        original_invoice = None
+        if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
+            original_invoice = invoice.reversed_entry_id
+        elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
+            original_invoice = invoice.debit_origin_id
+
+        if not original_invoice:
+            _logger.warning(f"Cannot determine modification code: no original invoice found for {invoice.name}")
+            return ''
+
+        # Compare amounts using absolute values (to handle negative amounts in refunds)
+        current_amount = abs(invoice.amount_total)
+        original_amount = abs(original_invoice.amount_total)
+
+        # Use a small epsilon for float comparison
+        epsilon = 0.01
+
+        if abs(current_amount - original_amount) < epsilon:
+            # Total cancellation - amounts are equal
+            return '1'
+        else:
+            # Amount correction - credit note is for less than original
+            return '3'
+
+    def _amount_total_in_dop(self):
+        """amount_total en DOP (umbral DGII/WebPOS 250k)."""
+        self.ensure_one()
+        amount_total = float(self.amount_total or 0.0)
+        cur = (self.currency_id.name or '').strip().upper()
+        try:
+            inv_rate = float(self._get_fiscal_rate() or 0.0)
+        except (TypeError, ValueError):
+            inv_rate = 0.0
+        if cur and cur != 'DOP' and inv_rate > 0:
+            return amount_total * inv_rate
+        return amount_total
+
+    def _webpos_ecf_type_code(self):
+        """Código numérico e-CF (31, 32, …) desde tipo LATAM E## o e-NCF."""
+        self.ensure_one()
+        import re
+
+        latam_dt = self.l10n_latam_document_type_id
+        if latam_dt and getattr(latam_dt, 'doc_code_prefix', None):
+            prefix = (latam_dt.doc_code_prefix or '').strip()
+            match = re.match(r'^E(\d{2})', prefix, re.I)
+            if match:
+                return match.group(1)
+
+        ncf = (self.l10n_latam_document_number or '').strip()
+        if ncf.upper().startswith('E') and len(ncf) >= 3:
+            return ncf[1:3]
+        return None
+
+    def _is_webpos_candidate_for_post(self):
+        """Pre-post: diario WebPOS + tipo e-CF permitido (sin exigir NCF asignado)."""
+        self.ensure_one()
+        if not self.journal_id.is_webpos:
+            return False
+        tipo_ecf = self._webpos_ecf_type_code()
+        if not tipo_ecf:
+            return False
+        flujo = "ventas" if self.move_type.startswith("out_") else "compras"
+        if flujo == "ventas":
+            return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES
+        if flujo == "compras":
+            return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
+        return False
+
+    def _validate_webpos_invoice(self):
+        """Valida requisitos WebPOS antes de confirmar (solo diarios WebPOS)."""
+        if not self.journal_id.is_webpos:
+            return
+
+        errors = []
+        product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
+
+        if self._amount_total_in_dop() >= 250000:
+            if not self.partner_id.vat or not self.partner_id.vat.strip():
+                errors.append(
+                    _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
                 )
+
+        for line in product_lines:
+            label = (self.get_clean_description(line) or line.name or '').strip()
+            if not label:
+                hint = line.product_id.display_name if line.product_id else _('línea sin producto')
+                errors.append(
+                    _(
+                        '- La etiqueta / descripción de la línea no puede estar vacía '
+                        '(producto: %s).'
+                    )
+                    % hint
+                )
+            if not line.tax_ids:
+                errors.append(
+                    _(
+                        "- Línea '%s' no tiene impuestos configurados. "
+                        "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento)."
+                    )
+                    % label[:50]
+                )
+
+        taxes = self.line_ids.tax_ids
+        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+        if unverified_taxes:
+            tax_names = ", ".join(unverified_taxes.mapped("name"))
+            errors.append(_("- Impuestos sin verificar: %s") % tax_names)
+
+        if errors:
+            raise UserError(
+                _("La factura no puede ser confirmada. Por favor, corrija los siguientes errores:\n\n%s")
+                % "\n".join(errors)
+            )
+
+    def _validate_webpos_ready_to_send(self):
+        """Config WebPOS obligatoria antes de postear (0 HTTP)."""
+        self.ensure_one()
+        cre = self.company_id.fe_webpos_id.filtered(lambda p: p.active)
+        if not cre:
+            raise UserError(_('No hay ambiente activo configurado en esta compañia.'))
+        cre = cre[:1]
+        if not (cre.apk and cre.url_base and cre.companyLicCod):
+            raise UserError(
+                _('Configure ambiente WebPOS (apk, url y licencia) antes de confirmar la factura.')
+            )
 
     def _get_api_base_url(self):
         """Get the API base URL from system parameters"""
@@ -205,90 +417,83 @@ class AccountMove(models.Model):
 
 
     def _is_l10n_do_webpos_allowed_document(self):
+        """Post-send: candidato WebPOS + e-NCF real (no TEMP-)."""
         self.ensure_one()
-        # Si no es factura electrónica o no tiene número de documento o no es diario webpos, no está permitida
-        if not self.is_ecf_invoice or not self.l10n_latam_document_number or not self.journal_id.is_webpos:
+        if not self._is_webpos_candidate_for_post():
+            return False
+        ncf = (self.l10n_latam_document_number or '').strip()
+        if not ncf or ncf.startswith('TEMP-'):
+            return False
+        return True
+
+    def _webpos_send_and_verify(self, raise_on_error=False):
+        """Envío y verificación WebPOS tras postear (I/O sin rollback del asiento)."""
+        self.ensure_one()
+        doc_type = self.doc_type_E(self)
+        xml_content, xml_name = self.build_xml_to_print(self, doc_type)
+
+        xml_record = self.xml_data_id
+        if xml_record:
+            xml_record.write({
+                'xml_data': xml_content,
+                'name': self.l10n_latam_document_number or xml_record.name,
+            })
+        else:
+            xml_record = self.create_xml_data(self, xml_content)
+
+        sent_ok = xml_record.save_and_send_xml(raise_on_error=raise_on_error)
+        if not sent_ok:
+            if not raise_on_error:
+                msg = xml_record.dgi_err_msg or _('Error al enviar a WebPOS')
+                self.message_post(body=_('e-CF WebPOS no enviado: %s') % msg)
             return False
 
-        # Extraer el tipo (ej. '31' de 'E310000000005')
-        # El tipo son los dos dígitos después de la 'E'
-        tipo_ecf = self.l10n_latam_document_number[1:3]
-        flujo = "ventas" if self.move_type.startswith("out_") else "compras"
+        verify_ok = xml_record.verify_sent_encf(raise_on_error=raise_on_error)
+        if not verify_ok and not raise_on_error:
+            _logger.warning(
+                'WebPOS verify pending or failed for invoice %s (xml %s)',
+                self.id,
+                xml_record.id,
+            )
 
-        if flujo == "ventas":
-            # Ventas directas + Notas de crédito/débito que afecten ventas
-            return tipo_ecf in self.E_CF_VENTAS or tipo_ecf in self.E_CF_AJUSTES
-        elif flujo == "compras":
-            # Compras (remitidas en 606) + Notas que afecten gastos
-            return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
-        return False
+        if (
+            self.l10n_latam_document_number
+            and self.l10n_latam_document_number.startswith('TEMP-')
+        ):
+            document_number = self._get_webpos_fiscal_document_number()
+            if not document_number:
+                _logger.warning(
+                    'WebPOS: no fiscal number hook for invoice %s (TEMP- placeholder)',
+                    self.id,
+                )
+                return sent_ok
+            self.write({
+                'l10n_latam_document_number': document_number,
+                'payment_reference': f'{self.name} - {document_number}',
+            })
+            if self.xml_data_id:
+                self.xml_data_id.name = document_number
+
+        try:
+            self.xml_print_to_std(xml_content)
+        except Exception as e:
+            _logger.warning('xml_print_to_std failed for invoice %s: %s', self.id, e)
+
+        return sent_ok
 
     def action_post(self):
+        webpos_moves = self.filtered(lambda m: m._is_webpos_candidate_for_post())
+        for invoice in webpos_moves:
+            invoice._validate_webpos_invoice()
+            invoice._validate_webpos_ready_to_send()
+            invoice.doc_type_E(invoice)
+
         res = super(AccountMove, self).action_post()
 
-        invoices = self.env['account.move'].browse(self.ids)
-        
-
-
-        # Lógica adicional después de confirmar la factura
-
-        for invoice in invoices:
-            _logger.info("=" * 50)
-            _logger.info("=" * 50)
-            _logger.error("invoice_id: %s, is_ecf:%s, is_webpos: %s, latam_document: %s", invoice,invoice.is_ecf_invoice, invoice.journal_id.is_webpos, invoice.l10n_latam_document_number) 
-            _logger.info("=" * 50)
-            _logger.info("=" * 50)
-
-            if invoice._is_l10n_do_webpos_allowed_document():
-
-                    doc_type = self.doc_type_E(invoice)
-                    xml_content, xml_name = self.build_xml_to_print(invoice, doc_type)
-                    xml_data = xml_content
-                    try:
-                        execute_EF = invoice.create_xml_data(invoice, xml_data)
-                        if invoice.amount_total >= 250000:
-                            if not invoice.partner_id.vat or not invoice.partner_id.vat.strip():
-                                raise UserError(
-                                    _(
-                                        "Para facturas con monto total igual o mayor a RD$250,000, es obligatorio que el cliente tenga RNC o Cédula registrado."
-                                    )
-                                )
-                        taxes = self.line_ids.tax_ids
-                        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
-                        if unverified_taxes:
-                            raise UserError(
-                                _(
-                                    "Los siguientes impuestos no están verificados para WebPOS: %s"
-                                )
-                                % ", ".join(unverified_taxes.mapped("name"))
-                            )
-                        execute_EF.save_and_send_xml()
-                        execute_EF.verify_sent_encf()
-                        if invoice.l10n_latam_document_number.startswith("TEMP-"):
-                            document_number = (
-                                invoice.l10n_do_fiscal_sequence_id.get_fiscal_number()
-                            )
-                            invoice.write(
-                                {
-                                    "l10n_latam_document_number": document_number,
-                                    "payment_reference": f"{invoice.name} - {document_number}",
-                                }
-                            )
-                            if invoice.xml_data_id:
-                                invoice.xml_data_id.name = document_number
-                    except Exception as e:
-                        raise UserError(
-                            _("Error al crear el documento Electronico: %s" % str(e))
-                        )
-                    self.xml_print_to_std(xml_content)
-            else:
-                _logger.info(
-                    "WebPOS API call skipped for invoice %s: Document type %s not allowed for current flow.",
-                    invoice.id,
-                    invoice.l10n_latam_document_number[1:3]
-                    
-                )
-
+        for invoice in webpos_moves.exists().filtered(
+            lambda m: m._is_l10n_do_webpos_allowed_document()
+        ):
+            invoice._webpos_send_and_verify(raise_on_error=False)
 
         return res
 
@@ -418,7 +623,7 @@ class AccountMove(models.Model):
             # Prepare partner data with comprehensive fallback
             partner_data = {
                 'name': invoice.partner_id.name or '',
-                'vat': invoice.partner_id.vat or '',
+                'vat': ''.join(filter(str.isdigit, invoice.partner_id.vat or '')),
                 'street': invoice.partner_id.street or '',
                 'state_name': invoice.partner_id.state_id.name if invoice.partner_id.state_id else '',
                 'country_name': invoice.partner_id.country_id.name if invoice.partner_id.country_id else '',
@@ -430,7 +635,7 @@ class AccountMove(models.Model):
                 'id': invoice.currency_id.id,
                 'name': invoice.currency_id.name or '',
                 'decimal_places': invoice.currency_id.decimal_places or 2,
-                'inverse_rate': invoice.currency_id.rate or 1.0
+                'inverse_rate': invoice._get_fiscal_rate()
             }
 
             # Prepare company data with fallback
@@ -445,44 +650,18 @@ class AccountMove(models.Model):
 
             # Prepare invoice lines data
             lines_data = []
-            for line in invoice.invoice_line_ids:
+            for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
                 line_taxes = []
                 for tax in line.tax_ids:
-                    _logger.error("="*60)
-                    _logger.error("TAX DEBUG:")
-                    _logger.error(f"  Tax name: {tax.name}")
-                    _logger.error(f"  Tax amount: {tax.amount}")
-                    _logger.error(f"  Tax group: {tax.tax_group_id}")
-                    _logger.error(f"  Tax group name: {tax.tax_group_id.name if tax.tax_group_id else 'None'}")
-                    _logger.error(f"  Tipo_impuesto_webpos: {getattr(tax, 'tipo_impuesto_webpos', 'NO_EXISTE')}")
-                    
                     tax_data = {
                         'name': tax.name or '',
                         'amount': tax.amount or 0.0,
                         'price_include': tax.price_include or False,
-                        'tax_group_id': [tax.tax_group_id.id, tax.tax_group_id.name] if tax.tax_group_id else False,
+                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
                     }
-                    
-                    # Log condition evaluation
-                    has_group = bool(tax.tax_group_id)
-                    group_name_upper = tax.tax_group_id.name.upper() if tax.tax_group_id else ''
-                    has_itbis = 'ITBIS' in group_name_upper if tax.tax_group_id else False
-                    is_positive = tax.amount > 0
-                    
-                    _logger.error(f"  Condiciones:")
-                    _logger.error(f"    - has_group: {has_group}")
-                    _logger.error(f"    - group_name_upper: {group_name_upper}")
-                    _logger.error(f"    - has_itbis: {has_itbis}")
-                    _logger.error(f"    - is_positive: {is_positive}")
-                    _logger.error(f"    - ALL CONDITIONS: {has_group and has_itbis and is_positive}")
-                    
                     # Map tipo_impuesto_webpos exclusively for ITBIS taxes (group "ITBIS" and positive amount)
-                    if has_group and has_itbis and is_positive:
-                        tax_data['tipo_impuesto_webpos'] = tax.tipo_impuesto_webpos
-                        _logger.error(f"  ✓ APLICADO tipo_impuesto_webpos = {tax.tipo_impuesto_webpos}")
-                    else:
-                        _logger.error(f"  ✗ NO aplicado")
-                    
+                    if tax.tax_group_id.name == 'ITBIS' and tax.amount > 0:
+                        tax_data['tipo_impuesto_webpos_itbis'] = tax.tipo_impuesto_webpos
                     line_taxes.append(tax_data)
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
@@ -499,8 +678,9 @@ class AccountMove(models.Model):
 
 
                 lines_data.append({
-                    'name': line.name or '',
+                    'name': self.get_clean_description(line),
                     'quantity': line.quantity or 0.0,
+                    'discount': line.discount or 0.0,
                     'price_unit': adjusted_price_unit,
                     'price_subtotal': line.price_subtotal or 0.0,
                     'price_total': line.price_total or 0.0,
@@ -553,6 +733,10 @@ class AccountMove(models.Model):
                     except (AttributeError, ValueError, TypeError):
                         ncf_expiration_date = ''
 
+            # Calculate e-CF modification code automatically for WebPOS
+            ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
+            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", ecf_modification_code)
+
             # Determine origin NCF and reference date for credit/debit notes
             # Debug logging for l10n_do_origin_ncf field
             _logger.error(f"DEBUG: invoice.l10n_do_origin_ncf raw value: {getattr(invoice, 'l10n_do_origin_ncf', 'FIELD_NOT_FOUND')}")
@@ -584,8 +768,8 @@ class AccountMove(models.Model):
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
-                'l10n_do_income_type': invoice.l10n_do_income_type or '01',
-                'l10n_do_ecf_modification_code': invoice.l10n_do_ecf_modification_code or '',
+                'l10n_do_income_type': invoice.l10n_do_income_type,
+                'l10n_do_ecf_modification_code': ecf_modification_code,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
                 'company_id': company_data,
@@ -597,9 +781,6 @@ class AccountMove(models.Model):
                 'aditional_info_invoice_header1': getattr(invoice, 'aditional_info_invoice_header1', ''),
                 'aditional_info_invoice_header2': getattr(invoice, 'aditional_info_invoice_header2', ''),
             }
-            
-            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", 
-                        invoice.l10n_do_ecf_modification_code)
 
             def clean_dates(obj):
                 if isinstance(obj, dict):
@@ -638,7 +819,7 @@ class AccountMove(models.Model):
             
             # Log invoice conditions
             _logger.info("Invoice Conditions:")
-            _logger.info("Is ECF Invoice: %s", invoice.is_ecf_invoice)
+            _logger.info("Is ECF Invoice: %s", invoice._webpos_is_ecf_invoice())
             _logger.info("Journal is WebPOS: %s", invoice.journal_id.is_webpos)
             _logger.info("Fiscal Number: %s", invoice.l10n_latam_document_number)
             _logger.info("Journal Uses Documents: %s", invoice.journal_id.l10n_latam_use_documents)
@@ -801,7 +982,7 @@ class AccountMove(models.Model):
             # Si no existe, crea un nuevo registro en my.xml.data
             # Determine document type based on current invoice characteristics
             doc_type = self.doc_type_E(self) # Pass the invoice object
-            _logger_.info("EX444 0 doctype rebuild {doc_type}")
+            _logger.info("EX444 0 doctype rebuild %s", doc_type)
             xml_content, xml_name = self.build_xml_to_print(self, doc_type)  # Genera el contenido XML
             xml_data = self.env['my.xml.data'].create({
                 'name': self.l10n_latam_document_number,  # O el campo que desees usar
@@ -817,77 +998,48 @@ class AccountMove(models.Model):
         self.xml_data_id.action_verify_sent_encf()
 
     def action_manual_resend_webpos(self):
-        """
-        Manual action to resend WebPOS documents that were not processed initially.
-        This method performs the complete WebPOS sending process:
-        1. Validates invoice eligibility
-        2. Creates XML data if it doesn't exist
-        3. Sends XML to WebPOS API
-        4. Verifies the sent document
-        """
+        """Reenvío manual: validación completa + send/verify con raise_on_error."""
         self.ensure_one()
 
-        # Validate invoice eligibility for WebPOS
-        if not (self.is_ecf_invoice and self.journal_id.is_webpos and self.l10n_latam_document_number and self.journal_id.l10n_latam_use_documents):
-            raise UserError(_('Esta factura no es elegible para envío WebPOS. Debe ser una factura electrónica en un diario WebPOS con número fiscal válido.'))
+        if not (
+            self.journal_id.is_webpos
+            and self.l10n_latam_document_number
+            and getattr(self.journal_id, 'l10n_latam_use_documents', False)
+        ):
+            raise UserError(
+                _(
+                    'Esta factura no es elegible para envío WebPOS. '
+                    'Debe estar en un diario WebPOS con documentos fiscales y número e-NCF.'
+                )
+            )
 
-        # Check document type validation using the new unified method
         if not self._is_l10n_do_webpos_allowed_document():
+            tipo = self._webpos_ecf_type_code() or 'N/A'
             raise UserError(
                 _(
                     "El tipo de documento %s (%s) no está permitido en el diario %s para el flujo de %s."
                 )
                 % (
                     self.l10n_latam_document_type_id.name,
-                    self.l10n_latam_document_number[1:3]
-                    if self.l10n_latam_document_number
-                    else "N/A",
+                    tipo,
                     self.journal_id.name,
                     "ventas" if self.move_type.startswith("out_") else "compras",
                 )
             )
 
-        try:
-            # Create XML data if it doesn't exist
-            if not self.xml_data_id:
-                _logger.info("Creating XML data for manual WebPOS resend of invoice %s", self.id)
-                doc_type = self.doc_type_E(self)
-                xml_content, xml_name = self.build_xml_to_print(self, doc_type)
+        self._validate_webpos_invoice()
+        self._validate_webpos_ready_to_send()
+        self._webpos_send_and_verify(raise_on_error=True)
 
-                xml_data = self.env['my.xml.data'].create({
-                    'name': self.l10n_latam_document_number,
-                    'xml_data': xml_content,
-                    'account_move_id': self.id,
-                    'status': 'pending',
-                })
-                self.xml_data_id = xml_data.id
-            else:
-                _logger.info("Using existing XML data for manual WebPOS resend of invoice %s", self.id)
-
-            # Send XML to WebPOS
-            _logger.info("Sending XML to WebPOS for invoice %s", self.id)
-            self.xml_data_id.save_and_send_xml()
-
-            # Verify sent document
-            _logger.info("Verifying sent document for invoice %s", self.id)
-            self.xml_data_id.verify_sent_encf()
-
-            # Log success
-            _logger.info("Manual WebPOS resend completed successfully for invoice %s", self.id)
-
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Éxito'),
-                    'message': _('Documento reenviado exitosamente a WebPOS.'),
-                    'type': 'success',
-                }
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Éxito'),
+                'message': _('Documento reenviado exitosamente a WebPOS.'),
+                'type': 'success',
             }
-
-        except Exception as e:
-            _logger.error("Error in manual WebPOS resend for invoice %s: %s", self.id, str(e))
-            raise UserError(_('Error al reenviar documento a WebPOS: %s') % str(e))
+        }
 
 
     # fin mapeo funciones heredadas de xml_data_id

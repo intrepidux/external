@@ -27,7 +27,7 @@
             <field name="res_model">account.move</field>
             <field name="view_mode">tree,form</field>
             <field name="view_id" ref="view_account_move_webpos_tree"/>
-            <field name="domain">[("journal_id.is_webpos", "=", True), ("is_ecf_invoice", "=", True)]</field>
+            <field name="domain">[("journal_id.is_webpos", "=", True)]</field>
         </record>
 
         <!-- Update the Electronic Invoices menu to use the new action -->

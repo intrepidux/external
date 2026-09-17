@@ -615,6 +615,22 @@ class AccountMove(models.Model):
     #    _logger.error("<-- accountInvoice --> IT IS Error 4")
     #t    return inv
 
+    def _webpos_serialize_line_tax(self, tax):
+        """JSON de un impuesto para el API WebPOS."""
+        group_name = tax.tax_group_id.name if tax.tax_group_id else ''
+        tax_data = {
+            'name': tax.name or '',
+            'amount': tax.amount or 0.0,
+            'price_include': tax.price_include or False,
+            'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False,
+            'tax_group_name': group_name,
+        }
+        if group_name == 'ITBIS' and (tax.amount or 0.0) >= 0:
+            code = tax.tipo_impuesto_webpos
+            tax_data['tipo_impuesto_webpos'] = code
+            tax_data['tipo_impuesto_webpos_itbis'] = code
+        return tax_data
+
     def _prepare_invoice_data_for_api(self, invoice):
         """Prepare comprehensive invoice data for API with robust error handling"""
         try:
@@ -651,16 +667,7 @@ class AccountMove(models.Model):
             for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
                 line_taxes = []
                 for tax in line.tax_ids:
-                    tax_data = {
-                        'name': tax.name or '',
-                        'amount': tax.amount or 0.0,
-                        'price_include': tax.price_include or False,
-                        'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False
-                    }
-                    # Map tipo_impuesto_webpos exclusively for ITBIS taxes (group "ITBIS" and positive amount)
-                    if tax.tax_group_id.name == 'ITBIS' and tax.amount > 0:
-                        tax_data['tipo_impuesto_webpos_itbis'] = tax.tipo_impuesto_webpos
-                    line_taxes.append(tax_data)
+                    line_taxes.append(self._webpos_serialize_line_tax(tax))
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
                 adjusted_price_unit = line.price_unit or 0.0

@@ -509,14 +509,11 @@ class MyXMLData(models.Model):
             
             # Process tax information for each line
             for tax in line.tax_ids:
-                tax_data = {
+                tax_data = invoice._webpos_serialize_line_tax(tax)
+                tax_data.update({
                     'id': tax.id,
-                    'name': tax.name,
-                    'amount': tax.amount,
-                    'price_include': tax.price_include,
                     'tax_scope': getattr(tax, 'tax_scope', ''),
-                    'tipo_impuesto_webpos': getattr(tax, 'tipo_impuesto_webpos', None),  # AGREGAR
-                }
+                })
                 line_data['tax_ids'].append(tax_data)
             
             processed_lines.append(line_data)

@@ -12,6 +12,7 @@ import logging
 _logger = logging.getLogger(__name__)
 
 import datetime
+from . import webpos_gate # NEW: Import webpos_gate module
 
 
 class AccountMove(models.Model):
@@ -69,22 +70,21 @@ class AccountMove(models.Model):
 
     # pos_order_ids = fields.One2many('pos.order', 'account_move')
     # pos_payment_ids = fields.One2many('pos.payment', 'account_move_id')
- 
-    xml_data = fields.Text('XML Data')
+
     xml_data_ids = fields.One2many('my.xml.data', 'account_move_id', string='XML Data ids') #pendiente eliminar
-
-
     xml_data_id = fields.Many2one('my.xml.data', string='My XML Data')
 
     journal_is_webpos = fields.Boolean(
         related='journal_id.is_webpos',
         string='Diario WebPOS',
+        store=False,
     )
 
     l10n_do_itbis_tax_group_id = fields.Many2one(
         'account.tax.group',
         string='ITBIS Tax Group',
-        compute='_compute_l10n_do_itbis_tax_group_id'
+        compute='_compute_l10n_do_itbis_tax_group_id',
+        store=False,
     )
 
     def _compute_l10n_do_itbis_tax_group_id(self):
@@ -92,32 +92,129 @@ class AccountMove(models.Model):
         for record in self:
             record.l10n_do_itbis_tax_group_id = itbis_group
 
-    # campos de my.xml.data mapeo
-    # Los campos serán accesibles a través de my_xml_data_id
-    xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=True)
-    xml_data = fields.Text(related='xml_data_id.xml_data', string='XML Data', store=True)
-    status = fields.Selection(related='xml_data_id.status', string='WebPosStatus', store=True)
-    dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=True)
-    dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=True)
-    # json_response = fields.Text(related='xml_data_id.json_response', string='Json Response')  # Descomentar si es necesario
+    # Espejo de my.xml.data: sin store. account_move tiene ~5M filas; el XML vive en my.xml.data.
+    xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=False)
+    xml_data = fields.Text(related='xml_data_id.xml_data', string='XML Data', store=False)
+    status = fields.Selection(related='xml_data_id.status', string='WebPosStatus', store=False)
+    dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=False)
+    dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=False)
 
-    # Campo para sello electrónico QR WebPOS (related para consistencia)
-    l10n_do_webpos_electronic_stamp = fields.Char(
-        related='xml_data_id.qr_code',
-        string="WebPOS Electronic Stamp",
-        store=True,
-        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)"
+    webpos_is_ecf_invoice = fields.Boolean(
+        string='Es factura electrónica WebPOS',
+        compute='_compute_webpos_is_ecf_invoice',
+        store=False,
+    )
+    l10n_do_webpos_ecf_sign_date = fields.Datetime(
+        string='Fecha Firmado e-CF',
+        compute='_compute_l10n_do_webpos_ecf_sign_date',
+        store=False,
+    )
+    l10n_do_webpos_ecf_security_code = fields.Char(
+        string='Código de Seguridad',
+        compute='_compute_l10n_do_webpos_ecf_security_code',
+        store=False,
+    )
+    l10n_do_webpos_qr_url = fields.Char(
+        string='URL Código QR',
+        compute='_compute_l10n_do_webpos_qr_url',
+        store=False,
     )
 
+    def _webpos_get_active_xml_data(self):
+        self.ensure_one()
+        return self.xml_data_id or self.xml_data_ids[:1]
+
+    def _webpos_get_dgii_qr_url(self):
+        self.ensure_one()
+        sanitize = self.env['my.xml.data']._webpos_sanitize_api_text
+        xml = self._webpos_get_active_xml_data()
+        return sanitize(xml.qr_code) if xml else False
+
+    @api.depends('xml_data_id.qr_code', 'xml_data_ids.qr_code')
+    def _compute_l10n_do_webpos_qr_url(self):
+        for rec in self:
+            rec.l10n_do_webpos_qr_url = rec._webpos_get_dgii_qr_url() or False
+
+    def action_open_webpos_dgii_qr_url(self):
+        self.ensure_one()
+        if not self._webpos_get_dgii_qr_url():
+            raise UserError(_('No hay URL de código QR disponible.'))
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '').rstrip('/')
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '%s/webpos/dgii_qr/%s' % (base_url, self.id),
+            'target': 'new',
+        }
+
+    @api.depends('xml_data_id.qr_l1', 'xml_data_ids.qr_l1')
+    def _compute_l10n_do_webpos_ecf_security_code(self):
+        for rec in self:
+            xml = rec._webpos_get_active_xml_data()
+            raw = self.env['my.xml.data']._webpos_sanitize_api_text(xml.qr_l1) if xml else ''
+            if ': ' in raw:
+                rec.l10n_do_webpos_ecf_security_code = raw.split(': ', 1)[1].strip()
+            else:
+                rec.l10n_do_webpos_ecf_security_code = raw or False
+
+    @api.depends(
+        'l10n_latam_document_type_id',
+        'l10n_latam_document_number',
+        'l10n_do_fiscal_number',
+        'company_id.l10n_do_ecf_issuer',
+        'company_id.country_id',
+    )
+    def _compute_webpos_is_ecf_invoice(self):
+        for rec in self:
+            rec.webpos_is_ecf_invoice = rec._webpos_is_ecf_invoice()
+
+    @api.depends('xml_data_id.qr_l2', 'xml_data_id.auth_date', 'xml_data_id.doc_date')
+    def _compute_l10n_do_webpos_ecf_sign_date(self):
+        for rec in self:
+            rec.l10n_do_webpos_ecf_sign_date = rec._webpos_parse_sign_date_from_xml()
+
+    def _webpos_parse_sign_date_from_xml(self):
+        """Parse sign datetime from WebPOS verify payload on my.xml.data."""
+        self.ensure_one()
+        xml = self.xml_data_id
+        if not xml:
+            return False
+        if xml.qr_l2:
+            try:
+                date_str = xml.qr_l2.split(': ', 1)[1] if ': ' in xml.qr_l2 else xml.qr_l2
+                return datetime.datetime.strptime(date_str.strip(), '%d-%m-%Y %H:%M:%S')
+            except (ValueError, TypeError, IndexError):
+                pass
+        if xml.auth_date:
+            return datetime.datetime.combine(xml.auth_date, datetime.datetime.min.time())
+        if xml.doc_date:
+            return datetime.datetime.combine(xml.doc_date, datetime.datetime.min.time())
+        return False
+
+    l10n_do_webpos_electronic_stamp = fields.Char(
+        string="WebPOS Electronic Stamp",
+        compute='_compute_l10n_do_webpos_electronic_stamp',
+        store=False,
+        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)",
+    )
+
+    @api.depends('xml_data_id.qr_code', 'xml_data_ids.qr_code')
+    def _compute_l10n_do_webpos_electronic_stamp(self):
+        sanitize = self.env['my.xml.data']._webpos_sanitize_api_text
+        for rec in self:
+            xml = rec._webpos_get_active_xml_data()
+            rec.l10n_do_webpos_electronic_stamp = sanitize(xml.qr_code) if xml else False
 
     l10n_do_webpos_electronic_stamp_encoded = fields.Char(
-        compute="_compute_qr_encoded"
+        compute="_compute_qr_encoded",
+        store=False,
     )
 
     @api.depends('l10n_do_webpos_electronic_stamp')
     def _compute_qr_encoded(self):
         for rec in self:
-            rec.l10n_do_webpos_electronic_stamp_encoded = quote(rec.l10n_do_webpos_electronic_stamp or '')
+            rec.l10n_do_webpos_electronic_stamp_encoded = quote(
+                rec.l10n_do_webpos_electronic_stamp or ''
+            )
 
 
 
@@ -379,14 +476,32 @@ class AccountMove(models.Model):
             response = requests.post(url, json=jsonrpc_data, headers=headers, timeout=30)
             response.raise_for_status()
             
-            return response.json()
-            
+            response_jsonrpc = response.json()
+            if 'error' in response_jsonrpc:
+                error_details = response_jsonrpc['error']
+                error_message = error_details.get('message', 'Unknown JSON-RPC error')
+                _logger.error(f"WebPOS API returned JSON-RPC error for {endpoint}: {error_message} - Data: {error_details}")
+                raise UserError(_('WebPOS API Error: %s') % error_message)
+
+            return response_jsonrpc
+
         except requests.exceptions.RequestException as e:
             _logger.error(f"API call to {endpoint} failed: {str(e)}")
             raise UserError(_('Error calling WebPOS API: %s') % str(e))
         except Exception as e:
             _logger.error(f"Unexpected error calling API {endpoint}: {str(e)}")
             raise UserError(_('Unexpected error calling WebPOS API: %s') % str(e))
+
+    def _webpos_api_result_payload(self, response_jsonrpc):
+        """Extrae result del JSON-RPC; errores de negocio (gate API) vienen en result.error."""
+        if 'error' in response_jsonrpc:
+            error_details = response_jsonrpc['error']
+            error_message = error_details.get('message', 'Unknown JSON-RPC error')
+            raise UserError(_('WebPOS API Error: %s') % error_message)
+        result = response_jsonrpc.get('result') or {}
+        if isinstance(result, dict) and result.get('error'):
+            raise UserError(result['error'])
+        return result
 
     def copy(self, default=None):
         # Asegúrate de que 'default' sea un diccionario para evitar errores
@@ -405,9 +520,10 @@ class AccountMove(models.Model):
         # Crear un nuevo registro en my.xml.data
         xml_data = self.env['my.xml.data'].create({
             'name': invoice.l10n_latam_document_number,
-            'xml_data': xml_content, 
-            'account_move_id': invoice.id,  # Asocia el XML con la factura
-            'status': 'pending',  # Establece el estado inicial
+            'xml_data': xml_content,
+            'account_move_id': invoice.id,
+            'company_id': invoice.company_id.id,
+            'status': 'pending',
         })
 
         # Asigna el registro creado a xml_data_id en account.move
@@ -482,6 +598,9 @@ class AccountMove(models.Model):
         return sent_ok
 
     def action_post(self):
+        # self.ensure_one() # Quitado para permitir posteo en lote
+        self.env['webpos.gate']._webpos_gate_assert_moves_operable(self) # Se pasa 'self' que puede ser un recordset
+
         webpos_moves = self.filtered(lambda m: m._is_webpos_candidate_for_post())
         for invoice in webpos_moves:
             invoice._validate_webpos_invoice()
@@ -497,7 +616,45 @@ class AccountMove(models.Model):
 
         return res
 
+    def _webpos_cancel_on_dgii_refusal(self, reason=''):
+        """
+        Cancela el asiento si el documento fue rechazado por DGII.
+        Imita el comportamiento de l10n_do_ecf_invoicing.
+        """
+        self.ensure_one()
+        if self.state == 'cancel':
+            return
+        if self.state != 'posted':
+            return
 
+        # Solo si es una factura webpos y electrónica
+        if not self.journal_id.is_webpos or not self._webpos_is_ecf_invoice():
+            _logger.warning("Intento de cancelar no-WebPOS/no-eCF %s por rechazo DGII. Ignorando.", self.name)
+            return
+
+        _logger.info("WebPOS: Factura %s (ID: %s) rechazada por DGII. Procediendo a cancelar.", self.name, self.id)
+
+        # Si existe el método para desconciliar pagos (del módulo l10n_do_ecf_invoicing), usarlo
+        if hasattr(self, 'l10n_do_ecf_unreconcile_payments'):
+            _logger.info("Desconciliando pagos para factura %s.", self.name)
+            self.l10n_do_ecf_unreconcile_payments()
+
+        # Si existe el campo l10n_do_ecf_send_state, actualizarlo para paridad UI
+        if 'l10n_do_ecf_send_state' in self._fields:
+            _logger.info("Actualizando l10n_do_ecf_send_state a delivered_refused para %s.", self.name)
+            self.l10n_do_ecf_send_state = 'delivered_refused'
+        
+        # Publicar mensaje de seguimiento en el chatter de la factura
+        self.message_post(body=_(
+            "Factura cancelada automáticamente por rechazo de la DGII/WebPOS. Motivo: %s",
+            reason or _("Desconocido")
+        ))
+
+        # Cancelar la factura, pasando el contexto para saltar la protección de cancelación
+        # El state = 'cancel' se setea dentro de button_cancel o por el flujo estándar.
+        _logger.info("Llamando a button_cancel con contexto cancelled_by_dgii=True para %s.", self.name)
+        self.with_context(cancelled_by_dgii=True).button_cancel()
+        _logger.info("WebPOS: Factura %s cancelada exitosamente por rechazo DGII.", self.name)
 
     def print_invoice(self):
         
@@ -639,7 +796,11 @@ class AccountMove(models.Model):
             }
 
             # Prepare company data with fallback
-            company_data = {}
+            active_fe = invoice.company_id.fe_webpos_id.filtered(lambda p: p.active)[:1]
+            company_data = {
+                'vat': self.env['webpos.gate']._normalize_rnc(invoice.company_id.vat) if invoice.company_id.vat else '',
+                'webpos_ambiente': active_fe.name if active_fe else '',
+            }
             if hasattr(invoice.company_id, 'fe_webpos_id') and invoice.company_id.fe_webpos_id:
                 company_data['fe_webpos_id'] = [{
                     'name': invoice.company_id.name or 'TEST',
@@ -703,30 +864,29 @@ class AccountMove(models.Model):
 
             # Try to get expiration date from original invoice first (for credit/debit notes)
             if original_invoice:
-                if hasattr(original_invoice, 'l10n_do_ncf_expiration_date') and original_invoice.l10n_do_ncf_expiration_date:
-                    try:
-                        ncf_expiration_date = original_invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
-                    except (AttributeError, ValueError, TypeError):
-                        ncf_expiration_date = ''
-                elif hasattr(original_invoice, 'ncf_expiration_date') and original_invoice.ncf_expiration_date:
+                if hasattr(original_invoice, 'ncf_expiration_date') and original_invoice.ncf_expiration_date:
                     try:
                         ncf_expiration_date = original_invoice.ncf_expiration_date.strftime('%Y-%m-%d')
                     except (AttributeError, ValueError, TypeError):
                         ncf_expiration_date = ''
-
-            # If no expiration date from original invoice, or for regular invoices, get from current invoice
-            if not ncf_expiration_date:
-                if hasattr(invoice, 'l10n_do_ncf_expiration_date') and invoice.l10n_do_ncf_expiration_date:
+                elif hasattr(original_invoice, 'l10n_do_ncf_expiration_date') and original_invoice.l10n_do_ncf_expiration_date:
                     try:
-                        ncf_expiration_date = invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
+                        ncf_expiration_date = original_invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
                     except (AttributeError, ValueError, TypeError):
                         ncf_expiration_date = ''
-                elif hasattr(invoice, 'ncf_expiration_date') and invoice.ncf_expiration_date:
+
+            # Sequence expiration (accounting_update) before indexa journal doc-type date.
+            if not ncf_expiration_date:
+                if hasattr(invoice, 'ncf_expiration_date') and invoice.ncf_expiration_date:
                     try:
                         ncf_expiration_date = invoice.ncf_expiration_date.strftime('%Y-%m-%d')
                     except (AttributeError, ValueError, TypeError):
                         ncf_expiration_date = ''
-                # Additional fallback: try to get from journal
+                elif hasattr(invoice, 'l10n_do_ncf_expiration_date') and invoice.l10n_do_ncf_expiration_date:
+                    try:
+                        ncf_expiration_date = invoice.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
+                    except (AttributeError, ValueError, TypeError):
+                        ncf_expiration_date = ''
                 elif hasattr(invoice.journal_id, 'l10n_do_ncf_expiration_date') and invoice.journal_id.l10n_do_ncf_expiration_date:
                     try:
                         ncf_expiration_date = invoice.journal_id.l10n_do_ncf_expiration_date.strftime('%Y-%m-%d')
@@ -847,19 +1007,13 @@ class AccountMove(models.Model):
             _logger.info("API Request Data: %s", json.dumps(api_data, indent=2))
             
             response = self._call_webpos_api('/generate_xml', api_data)
-            
-            # Log the full API response
+
             _logger.info("WebPOS API Response:")
             _logger.info(json.dumps(response, indent=2))
-            
-            # Check for errors in the response
-            if 'error' in response:
-                _logger.error("XML Generation API Error: %s", response['error'])
-                raise UserError(_('XML Generation Error: %s') % response['error'])
-            
-            # Extract XML content
-            xml_content = response.get('result', {}).get('xml_content', '')
-            xml_name = response.get('result', {}).get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
+
+            result = self._webpos_api_result_payload(response)
+            xml_content = result.get('xml_content', '')
+            xml_name = result.get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
             
             # Additional validation of XML content
             if not xml_content:
@@ -872,6 +1026,8 @@ class AccountMove(models.Model):
             
             return xml_content, xml_name
             
+        except UserError:
+            raise
         except Exception as e:
             # Comprehensive error logging
             _logger.error("Detailed Error in build_xml_to_print:")

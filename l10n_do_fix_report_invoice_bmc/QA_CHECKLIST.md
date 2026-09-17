@@ -22,9 +22,9 @@
 ## Reporte
 
 - [ ] PDF factura: tabla con columnas alineadas
-- [ ] QR visible cuando `l10n_do_electronic_stamp` está poblado
+- [ ] QR visible cuando `l10n_do_electronic_stamp` está poblado (sync desde verify WebPOS)
 
 ## Regresión
 
 - [ ] Secuencias híbridas B+E en journals (`l10n_do_accounting_update`)
-- [ ] NC/ND e-CF usan tipos de `l10n_do_fix_report_invoice_bmc`
+- [ ] NC/ND e-CF usan tipos de `l10n_do_accounting` (`ecf_credit_note_client`, `ecf_debit_note_client`)

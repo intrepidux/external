@@ -1,12 +1,10 @@
 import logging
-_logger = logging.getLogger(__name__)
 from odoo import SUPERUSER_ID, api
+
+_logger = logging.getLogger(__name__)
 
 
 def post_init_hook(cr, registry):
     env = api.Environment(cr, SUPERUSER_ID, {})
-    _logger.info("XXXXXXXXXXXXXXXXXXXXXXXXXXX Ejecutando post_init_hook para actualizar los valores por defecto...XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-    _logger.debug("XXXXXXXXXXXXXXXXXXXXXXXXXXX Ejecutando post_init_hook para actualizar los valores por defecto...XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-    _logger.error("XXXXXXXXXXXXXXXXXXXXXXXXXXX Ejecutando post_init_hook para actualizar los valores por defecto...XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
- 
     env['account.payment'].update_payment_defaults()
+    env['webpos.gate']._register_client_with_api()

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_account_journal_form_bmc_webpos_nc" model="ir.ui.view">
+        <field name="name">account.journal.form.bmc.webpos.nc</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="l10n_do_accounting_update.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='l10n_do_sequence_ids']" position="before">
+                <field name="bmc_has_e_credit_note_sequence" invisible="1"/>
+                <div colspan="2" attrs="{'invisible': ['|', ('type', '!=', 'purchase'), ('bmc_has_e_credit_note_sequence', '=', True)]}">
+                    <button
+                        name="action_bmc_ensure_webpos_credit_note_sequence"
+                        type="object"
+                        string="Agregar secuencia NC electrónica (E34)"
+                        class="btn-secondary mb-2"
+                    />
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

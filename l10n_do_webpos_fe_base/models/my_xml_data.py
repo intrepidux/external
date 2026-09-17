@@ -12,7 +12,13 @@ _logger = logging.getLogger(__name__)
 class MyXMLData(models.Model):
     _name = 'my.xml.data'
     _description = 'Maneja el procesamiento de documento XML '
-    
+
+    @staticmethod
+    def _webpos_sanitize_api_text(value):
+        if value in (None, False):
+            return value
+        return str(value).strip().replace('\r', '').replace('\n', '')
+
     _prefijo_factura = 'F'
     _prefijo_nota_credito = 'C'
     _prefijo_nota_debito = 'D'
@@ -83,6 +89,20 @@ class MyXMLData(models.Model):
     dgi_status = fields.Char(string="Estado DGI (Texto)", default="NO ENVIADO")
     json_response_sent = fields.Text(string='Res JSON(envio)')
     json_response = fields.Text(string='Res JSON(recibido)')
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            for field in ('qr_code', 'qr_l1', 'qr_l2'):
+                if field in vals:
+                    vals[field] = self._webpos_sanitize_api_text(vals[field])
+        return super().create(vals_list)
+
+    def write(self, vals):
+        for field in ('qr_code', 'qr_l1', 'qr_l2'):
+            if field in vals:
+                vals[field] = self._webpos_sanitize_api_text(vals[field])
+        return super().write(vals)
  
     def _serialize_datetime_data(self, data):
         """
@@ -155,6 +175,45 @@ class MyXMLData(models.Model):
         return bool(data.get('received')) and not data.get('accepted')
 
     @api.model
+    def _webpos_is_dgii_refused(self, response_data):
+        """
+        True when verify_status indicates DGII rejected the e-CF (not WebPOS send rejection).
+
+        Observed / expected dgiStatus values include 'Rechazado'; pending uses e.g. EnProceso.
+        """
+        if not response_data or not isinstance(response_data, dict):
+            return False
+
+        dgi_status = (response_data.get('dgiStatus') or '').strip()
+        if dgi_status and 'rechaz' in dgi_status.lower():
+            return True
+
+        authorized = response_data.get('authorized')
+        if authorized is True:
+            return False
+
+        dgi_err_msg = (response_data.get('dgiErrMsg') or '').strip()
+        if authorized is False and (dgi_err_msg or dgi_status):
+            if dgi_status and 'proceso' in dgi_status.lower():
+                return False
+            return True
+
+        return False
+
+    def _webpos_dgii_refusal_reason(self, response_data):
+        """Human-readable reason for DGII refusal (verify payload)."""
+        if not isinstance(response_data, dict):
+            return ''
+        parts = []
+        dgi_status = (response_data.get('dgiStatus') or '').strip()
+        dgi_err_msg = (response_data.get('dgiErrMsg') or '').strip()
+        if dgi_status:
+            parts.append(dgi_status)
+        if dgi_err_msg:
+            parts.append(dgi_err_msg)
+        return ' — '.join(parts)
+
+    @api.model
     def cron_webpos_followup(self):
         """Verifica envíos pendientes y reintenta errores técnicos (no rechazos de negocio)."""
         cr = self.env.cr
@@ -205,6 +264,7 @@ class MyXMLData(models.Model):
             'name': cre.name,
             'companyLicCod': cre.companyLicCod,
             'apk': cre.apk,
+            'company_rnc': self.env['webpos.gate']._normalize_rnc(self.company_id.vat) if self.company_id.vat else '',
         }
         xml_content = self.xml_data if self.xml_data else ""
         if not xml_content:
@@ -247,10 +307,14 @@ class MyXMLData(models.Model):
                     raise UserError(msg)
                 return False
             
-            # Process result
-            response_data = response_jsonrpc.get('result', {})
-            
-            # Update record based on response
+            response_data = response_jsonrpc.get('result', {}) or {}
+            if response_data.get('error'):
+                msg = response_data['error']
+                self.status = 'error'
+                if raise_on_error:
+                    raise UserError(msg)
+                return False
+
             if response_data.get('received') is True and response_data.get('accepted') is True:
                 self.status = 'sent'
                 _logger.info("XML enviado exitosamente: %s", self.name)
@@ -319,6 +383,7 @@ class MyXMLData(models.Model):
             'name': cre.name,
             'companyLicCod': cre.companyLicCod,
             'apk': cre.apk,
+            'company_rnc': self.env['webpos.gate']._normalize_rnc(self.company_id.vat) if self.company_id.vat else '',
         }
         
         # Get the API URL from system parameters or use default
@@ -381,9 +446,9 @@ class MyXMLData(models.Model):
                 self.system_ref = response_data.get('system_ref')
                 self.doc_affected_ref = response_data.get('docAffectedRef')
                 self.sub_doc_type = response_data.get('subDocType')
-                self.qr_code = response_data.get('qrCode')
-                self.qr_l1 = response_data.get('qrL1')
-                self.qr_l2 = response_data.get('qrL2')
+                self.qr_code = self._webpos_sanitize_api_text(response_data.get('qrCode'))
+                self.qr_l1 = self._webpos_sanitize_api_text(response_data.get('qrL1'))
+                self.qr_l2 = self._webpos_sanitize_api_text(response_data.get('qrL2'))
                 self.xml_webpos = response_data.get('xmlWebPOS')
                 self.sub_total = response_data.get('subTotal')
                 self.tax_total = response_data.get('taxTotal')
@@ -422,6 +487,27 @@ class MyXMLData(models.Model):
                     if invoice_updates:
                         move.write(invoice_updates)
                         _logger.info("Updated invoice %s with verification data: %s", move.id, invoice_updates)
+
+                if self._webpos_is_dgii_refused(response_data):
+                    reason = self._webpos_dgii_refusal_reason(response_data)
+                    self.status = 'error'
+                    _logger.warning(
+                        'WebPOS verify: DGII refused document %s (move %s): %s',
+                        self.name,
+                        move.id if move else None,
+                        reason,
+                    )
+                    self.message_post(body=_(
+                        'Verificación DGII: documento rechazado. %s',
+                        reason or _('Sin detalle'),
+                    ))
+                    if move:
+                        move._webpos_cancel_on_dgii_refusal(reason)
+                    msg = reason or _('Documento rechazado por la DGII')
+                    if raise_on_error:
+                        raise UserError(msg)
+                    return False
+
                 return True
 
             self.status = 'error'

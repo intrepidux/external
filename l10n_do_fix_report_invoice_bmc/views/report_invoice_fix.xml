@@ -5,9 +5,9 @@
               inherit_id="l10n_do_accounting_update.report_invoice_document_inherited"
               priority="25">
 
-        <xpath expr="//table[@name='invoice_line_table']" position="attributes">
+        <!-- <xpath expr="//table[@name='invoice_line_table']" position="attributes">
             <attribute name="style">table-layout: fixed; width: 100%;</attribute>
-        </xpath>
+        </xpath> -->
 
         <xpath expr="//div[@id='total']" position="after">
             <style>
@@ -21,6 +21,93 @@
             </style>
         </xpath>
 
+        <!-- Ocultar firmas solo en facturas e-CF de diario WebPOS -->
+        <xpath expr="//div[@class='text-center'][@style='padding-bottom:60px']" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@id='qrcode']/following-sibling::br[1]" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@id='qrcode']/following-sibling::br[2]" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@id='qrcode']/following-sibling::br[3]" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@id='qrcode']/following-sibling::br[4]" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+
+        <!-- Evitar que el bloque cliente (col-auto sin row) flote junto al header -->
+        <xpath expr="//div[@name='invoice_partner_address']" position="before">
+            <div t-if="o.journal_id.is_webpos and o.webpos_is_ecf_invoice"
+                 style="clear: both; width: 100%;"/>
+        </xpath>
+
+    </template>
+
+    <!-- Ocultar Original/Copia solo en facturas e-CF de diario WebPOS -->
+    <template id="report_invoice_document_bmc_hide_original_copy"
+              inherit_id="l10n_do_accounting.report_invoice_document_inherited"
+              priority="25">
+        <xpath expr="//strong[normalize-space(text())='Original:']/ancestor::div[contains(@class, 'col-4')][1]"
+               position="attributes">
+            <attribute name="t-if">is_l10n_do_invoice and not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+    </template>
+
+    <!-- Ocultar receiver_info (ID Cliente / Nombre) en WebPOS e-CF: duplica el bloque
+         de accounting_update y sus labels flotan al margen derecho del header. -->
+    <template id="report_invoice_bmc_hide_receiver_info"
+              inherit_id="l10n_do_accounting.informations"
+              priority="25">
+        <xpath expr="//div[@id='receiver_info']" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+    </template>
+
+    <!-- Fragmentos huérfanos del choque accounting_update (h2 replace) vs accounting (informations). -->
+    <template id="report_invoice_bmc_hide_orphan_header_fragments"
+              inherit_id="l10n_do_accounting.report_invoice_document_inherited"
+              priority="30">
+        <xpath expr="//div[@id='informations' and hasclass('col-6')]" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+        <xpath expr="//div[@id='informations' and hasclass('mt-4') and hasclass('mb-4')]" position="attributes">
+            <attribute name="t-if">not (o.journal_id.is_webpos and o.webpos_is_ecf_invoice)</attribute>
+        </xpath>
+    </template>
+
+
+    <!-- QR e-CF fuera del clearfix de totales: adentro wkhtmltopdf lo recorta en el PDF. -->
+    <template id="report_invoice_bmc_no_double_invoice"
+              inherit_id="account.report_invoice" priority="60">
+        <xpath expr="//t[@t-call='account.report_invoice_document']" position="attributes">
+            <attribute name="t-if">o._get_name_invoice_report() == 'account.report_invoice_document'</attribute>
+        </xpath>
+    </template>
+
+    <template id="report_invoice_document_bmc_ecf_qr"
+              inherit_id="l10n_do_accounting_update.report_invoice_document_inherited"
+              priority="40">
+        <xpath expr="//div[@id='total']/following-sibling::div[hasclass('row')][1]" position="attributes">
+            <attribute name="t-if">False</attribute>
+        </xpath>
+        <xpath expr="//div[@id='qrcode']" position="before">
+            <div t-if="o.bmc_ecf_qr_data_uri" class="row" style="clear: both; page-break-inside: avoid; margin-top: 10px;">
+                <div class="col-6" style="font-size: 11px;">
+                    <img t-att-src="o.bmc_ecf_qr_data_uri" style="width: 120px; height: 120px;" alt="QR e-CF"/>
+                    <div t-if="o.l10n_do_ecf_security_code">
+                        <strong>Código de Seguridad:</strong>
+                        <span t-esc="o.l10n_do_ecf_security_code"/>
+                    </div>
+                    <div t-if="o.l10n_do_ecf_sign_date">
+                        <strong>Fecha Firma Digital:</strong>
+                        <span t-field="o.l10n_do_ecf_sign_date" t-options="{'widget': 'date'}"/>
+                    </div>
+                </div>
+            </div>
+        </xpath>
     </template>
 
 </odoo>

@@ -41,7 +41,6 @@ for module in MODULES:
             errors.append(f'Obsolete path still present: {path}')
 
 required = [
-    ROOT / 'data' / 'l10n_latam.document.type.csv',
     ROOT.parent / 'l10n_do_webpos_fe_base' / 'data' / 'ir_cron_webpos_followup.xml',
     ROOT.parent / 'l10n_do_webpos_fe_base' / 'models' / 'account_move_inherit.py',
 ]

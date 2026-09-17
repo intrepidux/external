@@ -96,9 +96,21 @@ action = records.action_manual_resend_webpos()
                         </field> -->
                     </page>
                 </xpath>
-                <xpath expr="//field[@name='restrict_mode_hash_table']" position="after">
+                <xpath expr="//group[@id='header_left_group']" position="inside">
                     <field name="journal_is_webpos" invisible="1"/>
-                    <field name="dgi_status" attrs="{'invisible': [('journal_is_webpos', '=', False)]}"/>
+                    <field name="webpos_is_ecf_invoice" invisible="1"/>
+                    <field name="dgi_status" string="Estado DGII" readonly="1"
+                        attrs="{'invisible': ['|', ('journal_is_webpos', '=', False), ('webpos_is_ecf_invoice', '=', False)]}"/>
+                    <field name="l10n_do_webpos_ecf_sign_date" readonly="1"
+                        attrs="{'invisible': ['|', ('journal_is_webpos', '=', False), ('webpos_is_ecf_invoice', '=', False)]}"/>
+                    <field name="l10n_do_webpos_ecf_security_code" readonly="1"
+                        attrs="{'invisible': ['|', ('journal_is_webpos', '=', False), ('webpos_is_ecf_invoice', '=', False)]}"/>
+                    <field name="l10n_do_webpos_qr_url" invisible="1"/>
+                </xpath>
+                <xpath expr="//button[@id='account_invoice_payment_btn']" position="after">
+                    <button name="action_open_webpos_dgii_qr_url" type="object"
+                        string="Abrir DGII" class="oe_highlight"
+                        attrs="{'invisible': ['|', '|', ('journal_is_webpos', '=', False), ('webpos_is_ecf_invoice', '=', False), ('l10n_do_webpos_qr_url', '=', False)]}"/>
                 </xpath>
 
             </field>

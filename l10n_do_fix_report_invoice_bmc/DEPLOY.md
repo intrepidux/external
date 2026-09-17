@@ -31,8 +31,10 @@ docker compose run --rm odoo odoo -d doo16 --stop-after-init \
 4. **Auditoría impuestos** (shell):
 
 ```python
-exec(open('custom/bmc/kvillar93/bmcargo_vbs/l10n_do_fix_report_invoice_bmc/scripts/migrate_webpos_taxes.py').read())
+    exec(open('custom/bmc/kvillar93/bmcargo_vbs/l10n_do_fix_report_invoice_bmc/scripts/migrate_webpos_taxes.py').read())
 ```
+
+Los métodos `_webpos_configuration_issues()` viven en `l10n_do_webpos_fe_base`.
 
 ## XMLs pendientes (opcional, solo si hay historial)
 

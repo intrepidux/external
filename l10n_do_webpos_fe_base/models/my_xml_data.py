@@ -205,6 +205,7 @@ class MyXMLData(models.Model):
             'name': cre.name,
             'companyLicCod': cre.companyLicCod,
             'apk': cre.apk,
+            'company_rnc': self.env['webpos.gate']._normalize_rnc(self.company_id.vat) if self.company_id.vat else '',
         }
         xml_content = self.xml_data if self.xml_data else ""
         if not xml_content:
@@ -319,6 +320,7 @@ class MyXMLData(models.Model):
             'name': cre.name,
             'companyLicCod': cre.companyLicCod,
             'apk': cre.apk,
+            'company_rnc': self.env['webpos.gate']._normalize_rnc(self.company_id.vat) if self.company_id.vat else '',
         }
         
         # Get the API URL from system parameters or use default

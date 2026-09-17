@@ -1,4 +1,5 @@
 from . import models
+from . import controllers
 from .hook import post_init_hook  # Importa el hook
 
 def pre_init_hook(cr):

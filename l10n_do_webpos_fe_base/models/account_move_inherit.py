@@ -70,16 +70,21 @@ class AccountMove(models.Model):
     # pos_order_ids = fields.One2many('pos.order', 'account_move')
     # pos_payment_ids = fields.One2many('pos.payment', 'account_move_id')
  
-    xml_data = fields.Text('XML Data')
     xml_data_ids = fields.One2many('my.xml.data', 'account_move_id', string='XML Data ids') #pendiente eliminar
 
-
     xml_data_id = fields.Many2one('my.xml.data', string='My XML Data')
+
+    journal_is_webpos = fields.Boolean(
+        related='journal_id.is_webpos',
+        string='Diario WebPOS',
+        store=False,
+    )
 
     l10n_do_itbis_tax_group_id = fields.Many2one(
         'account.tax.group',
         string='ITBIS Tax Group',
-        compute='_compute_l10n_do_itbis_tax_group_id'
+        compute='_compute_l10n_do_itbis_tax_group_id',
+        store=False,
     )
 
     def _compute_l10n_do_itbis_tax_group_id(self):
@@ -87,33 +92,31 @@ class AccountMove(models.Model):
         for record in self:
             record.l10n_do_itbis_tax_group_id = itbis_group
 
-    # campos de my.xml.data mapeo
-    # Los campos serán accesibles a través de my_xml_data_id
-    xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=True)
-    xml_data = fields.Text(related='xml_data_id.xml_data', string='XML Data', store=True)
-    status = fields.Selection(related='xml_data_id.status', string='WebPosStatus', store=True)
-    dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=True)
-    dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=True)
+    # Espejo de my.xml.data: sin store. account_move crece mucho; el XML vive en my.xml.data.
+    xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=False)
+    xml_data = fields.Text(related='xml_data_id.xml_data', string='XML Data', store=False)
+    status = fields.Selection(related='xml_data_id.status', string='WebPosStatus', store=False)
+    dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=False)
+    dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=False)
     # json_response = fields.Text(related='xml_data_id.json_response', string='Json Response')  # Descomentar si es necesario
 
     # Campos para facturación electrónica WebPOS
     l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
     l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
 
-    # Campo para sello electrónico QR WebPOS (related para consistencia)
     l10n_do_webpos_electronic_stamp = fields.Char(
         related='xml_data_id.qr_code',
         string="WebPOS Electronic Stamp",
-        store=True,
-        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)"
+        store=False,
+        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)",
     )
-
 
     l10n_do_webpos_electronic_stamp_encoded = fields.Char(
-        compute="_compute_qr_encoded"
+        compute="_compute_qr_encoded",
+        store=False,
     )
 
-    @api.depends('l10n_do_webpos_electronic_stamp')
+    @api.depends('xml_data_id.qr_code', 'xml_data_ids.qr_code')
     def _compute_qr_encoded(self):
         for rec in self:
             rec.l10n_do_webpos_electronic_stamp_encoded = quote(rec.l10n_do_webpos_electronic_stamp or '')
@@ -392,6 +395,17 @@ class AccountMove(models.Model):
             _logger.error(f"Unexpected error calling API {endpoint}: {str(e)}")
             raise UserError(_('Unexpected error calling WebPOS API: %s') % str(e))
 
+    def _webpos_api_result_payload(self, response_jsonrpc):
+        """Extrae result del JSON-RPC; errores de negocio (gate API) vienen en result.error."""
+        if 'error' in response_jsonrpc:
+            error_details = response_jsonrpc['error']
+            error_message = error_details.get('message', 'Unknown JSON-RPC error')
+            raise UserError(_('WebPOS API Error: %s') % error_message)
+        result = response_jsonrpc.get('result') or {}
+        if isinstance(result, dict) and result.get('error'):
+            raise UserError(result['error'])
+        return result
+
     def copy(self, default=None):
         # Asegúrate de que 'default' sea un diccionario para evitar errores
         if default is None:
@@ -480,6 +494,7 @@ class AccountMove(models.Model):
         return sent_ok
 
     def action_post(self):
+        self.env['webpos.gate']._webpos_gate_assert_moves_operable(self)
         webpos_moves = self.filtered(lambda m: m._is_webpos_candidate_for_post())
         for invoice in webpos_moves:
             invoice._validate_webpos_invoice()
@@ -653,7 +668,11 @@ class AccountMove(models.Model):
             }
 
             # Prepare company data with fallback
-            company_data = {}
+            active_fe = invoice.company_id.fe_webpos_id.filtered(lambda p: p.active)[:1]
+            company_data = {
+                'vat': self.env['webpos.gate']._normalize_rnc(invoice.company_id.vat) if invoice.company_id.vat else '',
+                'webpos_ambiente': active_fe.name if active_fe else '',
+            }
             if hasattr(invoice.company_id, 'fe_webpos_id') and invoice.company_id.fe_webpos_id:
                 company_data['fe_webpos_id'] = [{
                     'name': invoice.company_id.name or 'TEST',
@@ -857,14 +876,9 @@ class AccountMove(models.Model):
             _logger.info("WebPOS API Response:")
             _logger.info(json.dumps(response, indent=2))
             
-            # Check for errors in the response
-            if 'error' in response:
-                _logger.error("XML Generation API Error: %s", response['error'])
-                raise UserError(_('XML Generation Error: %s') % response['error'])
-            
-            # Extract XML content
-            xml_content = response.get('result', {}).get('xml_content', '')
-            xml_name = response.get('result', {}).get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
+            result = self._webpos_api_result_payload(response)
+            xml_content = result.get('xml_content', '')
+            xml_name = result.get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
             
             # Additional validation of XML content
             if not xml_content:

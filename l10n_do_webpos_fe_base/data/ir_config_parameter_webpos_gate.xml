@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="webpos_gate_check_enabled_param" model="ir.config_parameter">
+            <field name="key">webpos.gate.check_enabled</field>
+            <field name="value">False</field>
+        </record>
+        <record id="webpos_gate_has_blocked_param" model="ir.config_parameter">
+            <field name="key">webpos.gate.has_blocked</field>
+            <field name="value">False</field>
+        </record>
+        <record id="webpos_gate_by_rnc_param" model="ir.config_parameter">
+            <field name="key">webpos.gate.by_rnc</field>
+            <field name="value">{}</field>
+        </record>
+        <record id="webpos_gate_last_sync_param" model="ir.config_parameter">
+            <field name="key">webpos.gate.last_sync</field>
+            <field name="value"></field>
+        </record>
+    </data>
+</odoo>

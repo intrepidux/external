@@ -8,7 +8,7 @@
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "18.0.1.0.1",
+    'version': "18.0.1.0.4",
 
     # any module necessary for this one to work correctly
     'depends': ['base','account','l10n_do'],
@@ -17,6 +17,7 @@
    'data': [
         'data/account_webpos_data.xml',
         'data/ir_cron_webpos_followup.xml',
+        'data/ir_config_parameter_webpos_gate.xml',
         'security/ir.model.access.csv',
         'views/account_journal_inherit.xml',
         'views/account_move_inherit.xml',
@@ -29,6 +30,6 @@
         'views/xml_data_logs_menu.xml',
         
     ],
-    # "post_init_hook": "post_init_hook", //revisar maximo recursions en actualizacion odoo sh
+    'post_init_hook': 'post_init_hook',
 
 }

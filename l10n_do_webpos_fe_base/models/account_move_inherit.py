@@ -70,16 +70,21 @@ class AccountMove(models.Model):
     # pos_order_ids = fields.One2many('pos.order', 'account_move')
     # pos_payment_ids = fields.One2many('pos.payment', 'account_move_id')
  
-    xml_data = fields.Text('XML Data')
     xml_data_ids = fields.One2many('my.xml.data', 'account_move_id', string='XML Data ids') #pendiente eliminar
 
-
     xml_data_id = fields.Many2one('my.xml.data', string='My XML Data')
+
+    journal_is_webpos = fields.Boolean(
+        related='journal_id.is_webpos',
+        string='Diario WebPOS',
+        store=False,
+    )
 
     l10n_do_itbis_tax_group_id = fields.Many2one(
         'account.tax.group',
         string='ITBIS Tax Group',
-        compute='_compute_l10n_do_itbis_tax_group_id'
+        compute='_compute_l10n_do_itbis_tax_group_id',
+        store=False,
     )
 
     def _compute_l10n_do_itbis_tax_group_id(self):
@@ -87,33 +92,31 @@ class AccountMove(models.Model):
         for record in self:
             record.l10n_do_itbis_tax_group_id = itbis_group
 
-    # campos de my.xml.data mapeo
-    # Los campos serán accesibles a través de my_xml_data_id
-    xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=True)
-    xml_data = fields.Text(related='xml_data_id.xml_data', string='XML Data', store=True)
-    status = fields.Selection(related='xml_data_id.status', string='WebPosStatus', store=True)
-    dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=True)
-    dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=True)
+    # Espejo de my.xml.data: sin store. account_move crece mucho; el XML vive en my.xml.data.
+    xml_name = fields.Char(related='xml_data_id.name', string='Name XML', store=False)
+    xml_data = fields.Text(related='xml_data_id.xml_data', string='XML Data', store=False)
+    status = fields.Selection(related='xml_data_id.status', string='WebPosStatus', store=False)
+    dgi_status = fields.Char(related='xml_data_id.dgi_status', string='Estado DGII', store=False)
+    dgi_err_msg = fields.Text(related='xml_data_id.dgi_err_msg', string='Error Message', store=False)
     # json_response = fields.Text(related='xml_data_id.json_response', string='Json Response')  # Descomentar si es necesario
 
     # Campos para facturación electrónica WebPOS
     l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
     l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)
 
-    # Campo para sello electrónico QR WebPOS (related para consistencia)
     l10n_do_webpos_electronic_stamp = fields.Char(
         related='xml_data_id.qr_code',
         string="WebPOS Electronic Stamp",
-        store=True,
-        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)"
+        store=False,
+        help="Sello electrónico QR obtenido del API WebPOS (evita conflicto con espaillatcomercial)",
     )
-
 
     l10n_do_webpos_electronic_stamp_encoded = fields.Char(
-        compute="_compute_qr_encoded"
+        compute="_compute_qr_encoded",
+        store=False,
     )
 
-    @api.depends('l10n_do_webpos_electronic_stamp')
+    @api.depends('xml_data_id.qr_code', 'xml_data_ids.qr_code')
     def _compute_qr_encoded(self):
         for rec in self:
             rec.l10n_do_webpos_electronic_stamp_encoded = quote(rec.l10n_do_webpos_electronic_stamp or '')
@@ -142,8 +145,7 @@ class AccountMove(models.Model):
                 record.l10n_latam_document_type_id and
                 hasattr(record.l10n_latam_document_type_id, 'doc_code_prefix')):
                 # If document type code starts with 'E', it's an electronic invoice
-                doc_code = record.l10n_latam_document_type_id.doc_code_prefix or ''
-                record.is_ecf_invoice = doc_code.startswith('E')
+                record.is_ecf_invoice = record.l10n_latam_document_type_id.doc_code_prefix and record.l10n_latam_document_type_id.doc_code_prefix.startswith('E')
             else:
                 # Fallback: if we can't determine from document type, check company settings
                 # This maintains compatibility with the original Adel logic
@@ -217,35 +219,35 @@ class AccountMove(models.Model):
     def _get_webpos_ecf_modification_code(self, invoice):
         """
         Calculate automatically the e-CF modification code for WebPOS API.
-        
+
         WebPOS API only accepts codes 1 and 3:
         - "1" = Total Cancellation (when credit note amount == original invoice amount)
         - "3" = Amount correction (when credit note amount < original invoice amount)
-        
+
         This method works independently of any localization field.
         """
         # Only apply to credit notes (out_refund) and debit notes (out_debit)
         if invoice.move_type not in ('out_refund', 'out_debit'):
             return ''
-        
+
         # Get the original invoice
         original_invoice = None
         if invoice.move_type == 'out_refund' and invoice.reversed_entry_id:
             original_invoice = invoice.reversed_entry_id
         elif invoice.move_type == 'out_debit' and invoice.debit_origin_id:
             original_invoice = invoice.debit_origin_id
-        
+
         if not original_invoice:
             _logger.warning(f"Cannot determine modification code: no original invoice found for {invoice.name}")
             return ''
-        
+
         # Compare amounts using absolute values (to handle negative amounts in refunds)
         current_amount = abs(invoice.amount_total)
         original_amount = abs(original_invoice.amount_total)
-        
+
         # Use a small epsilon for float comparison
         epsilon = 0.01
-        
+
         if abs(current_amount - original_amount) < epsilon:
             # Total cancellation - amounts are equal
             return '1'
@@ -298,6 +300,52 @@ class AccountMove(models.Model):
             return tipo_ecf in self.E_CF_COMPRAS or tipo_ecf in self.E_CF_AJUSTES
         return False
 
+    def _validate_webpos_invoice(self):
+        """Valida requisitos WebPOS antes de confirmar (solo diarios WebPOS)."""
+        if not self.journal_id.is_webpos:
+            return
+
+        errors = []
+        product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
+
+        if self._amount_total_in_dop() >= 250000:
+            if not self.partner_id.vat or not self.partner_id.vat.strip():
+                errors.append(
+                    _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
+                )
+
+        for line in product_lines:
+            label = (self.get_clean_description(line) or line.name or '').strip()
+            if not label:
+                hint = line.product_id.display_name if line.product_id else _('línea sin producto')
+                errors.append(
+                    _(
+                        '- La etiqueta / descripción de la línea no puede estar vacía '
+                        '(producto: %s).'
+                    )
+                    % hint
+                )
+            if not line.tax_ids:
+                errors.append(
+                    _(
+                        "- Línea '%s' no tiene impuestos configurados. "
+                        "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento)."
+                    )
+                    % label[:50]
+                )
+
+        taxes = self.line_ids.tax_ids
+        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
+        if unverified_taxes:
+            tax_names = ", ".join(unverified_taxes.mapped("name"))
+            errors.append(_("- Impuestos sin verificar: %s") % tax_names)
+
+        if errors:
+            raise UserError(
+                _("La factura no puede ser confirmada. Por favor, corrija los siguientes errores:\n\n%s")
+                % "\n".join(errors)
+            )
+
     def _validate_webpos_ready_to_send(self):
         """Config WebPOS obligatoria antes de postear (0 HTTP)."""
         self.ensure_one()
@@ -347,6 +395,17 @@ class AccountMove(models.Model):
             _logger.error(f"Unexpected error calling API {endpoint}: {str(e)}")
             raise UserError(_('Unexpected error calling WebPOS API: %s') % str(e))
 
+    def _webpos_api_result_payload(self, response_jsonrpc):
+        """Extrae result del JSON-RPC; errores de negocio (gate API) vienen en result.error."""
+        if 'error' in response_jsonrpc:
+            error_details = response_jsonrpc['error']
+            error_message = error_details.get('message', 'Unknown JSON-RPC error')
+            raise UserError(_('WebPOS API Error: %s') % error_message)
+        result = response_jsonrpc.get('result') or {}
+        if isinstance(result, dict) and result.get('error'):
+            raise UserError(result['error'])
+        return result
+
     def copy(self, default=None):
         # Asegúrate de que 'default' sea un diccionario para evitar errores
         if default is None:
@@ -384,52 +443,6 @@ class AccountMove(models.Model):
         if not ncf or ncf.startswith('TEMP-'):
             return False
         return True
-
-    def _validate_webpos_invoice(self):
-        """Valida requisitos WebPOS antes de confirmar (solo diarios WebPOS)."""
-        if not self.journal_id.is_webpos:
-            return
-
-        errors = []
-        product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
-
-        if self._amount_total_in_dop() >= 250000:
-            if not self.partner_id.vat or not self.partner_id.vat.strip():
-                errors.append(
-                    _("- Cliente sin RNC/Cédula: Para facturas >= RD$250,000 es obligatorio.")
-                )
-
-        for line in product_lines:
-            label = (self.get_clean_description(line) or line.name or '').strip()
-            if not label:
-                hint = line.product_id.display_name if line.product_id else _('línea sin producto')
-                errors.append(
-                    _(
-                        '- La etiqueta / descripción de la línea no puede estar vacía '
-                        '(producto: %s).'
-                    )
-                    % hint
-                )
-            if not line.tax_ids:
-                errors.append(
-                    _(
-                        "- Línea '%s' no tiene impuestos configurados. "
-                        "Cada línea debe tener al menos un impuesto (ej: ITBIS 18 o exento)."
-                    )
-                    % label[:50]
-                )
-
-        taxes = self.line_ids.tax_ids
-        unverified_taxes = taxes.filtered(lambda t: not t.itx_tax_verified)
-        if unverified_taxes:
-            tax_names = ", ".join(unverified_taxes.mapped("name"))
-            errors.append(_("- Impuestos sin verificar: %s") % tax_names)
-
-        if errors:
-            raise UserError(
-                _("La factura no puede ser confirmada. Por favor, corrija los siguientes errores:\n\n%s")
-                % "\n".join(errors)
-            )
 
     def _webpos_send_and_verify(self, raise_on_error=False):
         """Envío y verificación WebPOS tras postear (I/O sin rollback del asiento)."""
@@ -481,6 +494,7 @@ class AccountMove(models.Model):
         return sent_ok
 
     def action_post(self):
+        self.env['webpos.gate']._webpos_gate_assert_moves_operable(self)
         webpos_moves = self.filtered(lambda m: m._is_webpos_candidate_for_post())
         for invoice in webpos_moves:
             invoice._validate_webpos_invoice()
@@ -616,13 +630,29 @@ class AccountMove(models.Model):
     #    _logger.error("<-- accountInvoice --> IT IS Error 4")
     #t    return inv
 
+    def _webpos_serialize_line_tax(self, tax):
+        """JSON de un impuesto para el API WebPOS."""
+        group_name = tax.tax_group_id.name if tax.tax_group_id else ''
+        tax_data = {
+            'name': tax.name or '',
+            'amount': tax.amount or 0.0,
+            'price_include': tax.price_include or False,
+            'tax_group_id': tax.tax_group_id.id if tax.tax_group_id else False,
+            'tax_group_name': group_name,
+        }
+        if group_name == 'ITBIS' and (tax.amount or 0.0) >= 0:
+            code = tax.tipo_impuesto_webpos
+            tax_data['tipo_impuesto_webpos'] = code
+            tax_data['tipo_impuesto_webpos_itbis'] = code
+        return tax_data
+
     def _prepare_invoice_data_for_api(self, invoice):
         """Prepare comprehensive invoice data for API with robust error handling"""
         try:
             # Prepare partner data with comprehensive fallback
             partner_data = {
                 'name': invoice.partner_id.name or '',
-                'vat': invoice.partner_id.vat or '',
+                'vat': ''.join(filter(str.isdigit, invoice.partner_id.vat or '')),
                 'street': invoice.partner_id.street or '',
                 'state_name': invoice.partner_id.state_id.name if invoice.partner_id.state_id else '',
                 'country_name': invoice.partner_id.country_id.name if invoice.partner_id.country_id else '',
@@ -638,7 +668,11 @@ class AccountMove(models.Model):
             }
 
             # Prepare company data with fallback
-            company_data = {}
+            active_fe = invoice.company_id.fe_webpos_id.filtered(lambda p: p.active)[:1]
+            company_data = {
+                'vat': self.env['webpos.gate']._normalize_rnc(invoice.company_id.vat) if invoice.company_id.vat else '',
+                'webpos_ambiente': active_fe.name if active_fe else '',
+            }
             if hasattr(invoice.company_id, 'fe_webpos_id') and invoice.company_id.fe_webpos_id:
                 company_data['fe_webpos_id'] = [{
                     'name': invoice.company_id.name or 'TEST',
@@ -649,45 +683,10 @@ class AccountMove(models.Model):
 
             # Prepare invoice lines data
             lines_data = []
-            for line in invoice.invoice_line_ids:
+            for line in invoice.invoice_line_ids.filtered(lambda l: l.display_type == 'product'):
                 line_taxes = []
                 for tax in line.tax_ids:
-                    _logger.error("="*60)
-                    _logger.error("TAX DEBUG:")
-                    _logger.error(f"  Tax name: {tax.name}")
-                    _logger.error(f"  Tax amount: {tax.amount}")
-                    _logger.error(f"  Tax group: {tax.tax_group_id}")
-                    _logger.error(f"  Tax group name: {tax.tax_group_id.name if tax.tax_group_id else 'None'}")
-                    _logger.error(f"  Tipo_impuesto_webpos: {getattr(tax, 'tipo_impuesto_webpos', 'NO_EXISTE')}")
-                    
-                    tax_data = {
-                        'name': tax.name or '',
-                        'amount': tax.amount or 0.0,
-                        'price_include': tax.price_include or False,
-                        'tax_group_id': [tax.tax_group_id.id, tax.tax_group_id.name] if tax.tax_group_id else False,
-                    }
-                    
-                    # Log condition evaluation
-                    has_group = bool(tax.tax_group_id)
-                    group_name_upper = tax.tax_group_id.name.upper() if tax.tax_group_id else ''
-                    has_itbis = 'ITBIS' in group_name_upper if tax.tax_group_id else False
-                    is_positive = tax.amount > 0
-                    
-                    _logger.error(f"  Condiciones:")
-                    _logger.error(f"    - has_group: {has_group}")
-                    _logger.error(f"    - group_name_upper: {group_name_upper}")
-                    _logger.error(f"    - has_itbis: {has_itbis}")
-                    _logger.error(f"    - is_positive: {is_positive}")
-                    _logger.error(f"    - ALL CONDITIONS: {has_group and has_itbis and is_positive}")
-                    
-                    # Map tipo_impuesto_webpos exclusively for ITBIS taxes (group "ITBIS" and positive amount)
-                    if has_group and has_itbis and is_positive:
-                        tax_data['tipo_impuesto_webpos'] = tax.tipo_impuesto_webpos
-                        _logger.error(f"  ✓ APLICADO tipo_impuesto_webpos = {tax.tipo_impuesto_webpos}")
-                    else:
-                        _logger.error(f"  ✗ NO aplicado")
-                    
-                    line_taxes.append(tax_data)
+                    line_taxes.append(self._webpos_serialize_line_tax(tax))
 
                 # Adjust price_unit for exclusive pricing if taxes are inclusive
                 adjusted_price_unit = line.price_unit or 0.0
@@ -758,6 +757,10 @@ class AccountMove(models.Model):
                     except (AttributeError, ValueError, TypeError):
                         ncf_expiration_date = ''
 
+            # Calculate e-CF modification code automatically for WebPOS
+            ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
+            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", ecf_modification_code)
+
             # Determine origin NCF and reference date for credit/debit notes
             # Debug logging for l10n_do_origin_ncf field
             _logger.error(f"DEBUG: invoice.l10n_do_origin_ncf raw value: {getattr(invoice, 'l10n_do_origin_ncf', 'FIELD_NOT_FOUND')}")
@@ -782,10 +785,6 @@ class AccountMove(models.Model):
             else:
                 l10n_do_origin_ncf_date = ''
 
-            # Calculate e-CF modification code automatically for WebPOS
-            ecf_modification_code = self._get_webpos_ecf_modification_code(invoice)
-            _logger.info("Auto-calculated l10n_do_ecf_modification_code for WebPOS: %s", ecf_modification_code)
-
             # Prepare main invoice record data
             record_data = {
                 'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
@@ -793,7 +792,7 @@ class AccountMove(models.Model):
                 'ncf_expiration_date': ncf_expiration_date,
                 'l10n_do_origin_ncf': l10n_do_origin_ncf,
                 'l10n_do_origin_ncf_date': l10n_do_origin_ncf_date,
-                'l10n_do_income_type': invoice.l10n_do_income_type or '01',
+                'l10n_do_income_type': invoice.l10n_do_income_type,
                 'l10n_do_ecf_modification_code': ecf_modification_code,
                 'partner_id': partner_data,
                 'currency_id': currency_data,
@@ -806,9 +805,6 @@ class AccountMove(models.Model):
                 'aditional_info_invoice_header1': getattr(invoice, 'aditional_info_invoice_header1', ''),
                 'aditional_info_invoice_header2': getattr(invoice, 'aditional_info_invoice_header2', ''),
             }
-            
-            _logger.info("DEBUG: l10n_do_ecf_modification_code being sent to API: %s", 
-                        ecf_modification_code)
 
             def clean_dates(obj):
                 if isinstance(obj, dict):
@@ -880,14 +876,9 @@ class AccountMove(models.Model):
             _logger.info("WebPOS API Response:")
             _logger.info(json.dumps(response, indent=2))
             
-            # Check for errors in the response
-            if 'error' in response:
-                _logger.error("XML Generation API Error: %s", response['error'])
-                raise UserError(_('XML Generation Error: %s') % response['error'])
-            
-            # Extract XML content
-            xml_content = response.get('result', {}).get('xml_content', '')
-            xml_name = response.get('result', {}).get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
+            result = self._webpos_api_result_payload(response)
+            xml_content = result.get('xml_content', '')
+            xml_name = result.get('xml_name', f'{type_document}_{invoice.l10n_latam_document_number}.xml')
             
             # Additional validation of XML content
             if not xml_content:

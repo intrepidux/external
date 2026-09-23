@@ -1,12 +1,31 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 WEBPOS_ECF_INVOICE_REPORT = 'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf'
 
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
+
+    webpos_api_pdf_ready = fields.Boolean(
+        string='PDF WebPOS disponible',
+        compute='_compute_webpos_api_pdf_ready',
+    )
+
+    @api.depends(
+        'xml_data_id.pdf',
+        'xml_data_id.status',
+    )
+    def _compute_webpos_api_pdf_ready(self):
+        for move in self:
+            xml_rec = move.xml_data_id
+            move.webpos_api_pdf_ready = bool(
+                xml_rec
+                and xml_rec.pdf
+                and xml_rec.status == 'procesed'
+            )
 
     def _get_name_invoice_report(self):
         self.ensure_one()
@@ -58,3 +77,25 @@ class AccountMove(models.Model):
     def _webpos_ecf_report_origin_ncf(self):
         self.ensure_one()
         return getattr(self, 'l10n_do_origin_ncf', False) or ''
+
+    def action_print_webpos_api_pdf(self):
+        """Abre el PDF devuelto por WebPOS (verify_status), no el reporte QWeb de Odoo."""
+        self.ensure_one()
+        if self.state != 'posted':
+            raise UserError(_('La factura debe estar publicada.'))
+        if not self.journal_id.is_webpos or not self.is_ecf_invoice:
+            raise UserError(_('Solo aplica a comprobantes e-CF en diario WebPOS.'))
+        if not self.webpos_api_pdf_ready:
+            raise UserError(
+                _('El PDF WebPOS solo está disponible tras verificar DGII y recibir el archivo desde la API.')
+            )
+        xml_rec = self.xml_data_id
+        filename = (self.l10n_latam_document_number or self.name or 'webpos').replace('/', '-')
+        return {
+            'type': 'ir.actions.act_url',
+            'url': (
+                f'/web/content/my.xml.data/{xml_rec.id}/pdf/'
+                f'{filename}.pdf?download=true'
+            ),
+            'target': 'new',
+        }

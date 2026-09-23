@@ -18,6 +18,12 @@ class AccountMove(models.Model):
         self.ensure_one()
         return (self.l10n_latam_document_number or '').strip()
 
+    def _webpos_ecf_report_company_vat(self):
+        """RNC emisor; fallback matriz (sucursal) sin depender de l10n_do_accounting."""
+        self.ensure_one()
+        company = self.company_id
+        return (company.vat or company.sudo().root_id.vat or '').strip()
+
     def _webpos_ecf_report_document_title(self):
         self.ensure_one()
         doc_type = self.l10n_latam_document_type_id
@@ -25,8 +31,26 @@ class AccountMove(models.Model):
             return doc_type.report_name
         return 'Factura electrónica'
 
+    def _webpos_ecf_report_show_ncf_valid_until(self):
+        """Misma lógica que fiscal_exp_date en forks DO (campos opcionales)."""
+        self.ensure_one()
+        if not self._webpos_ecf_report_fiscal_number():
+            return False
+        if not getattr(self, 'l10n_latam_use_documents', False):
+            return False
+        if self.move_type not in ('out_invoice', 'out_refund'):
+            return False
+        if self.state != 'posted':
+            return False
+        doc_type = self.l10n_latam_document_type_id
+        if not doc_type or not doc_type.doc_code_prefix:
+            return False
+        prefix_tail = doc_type.doc_code_prefix[1:]
+        if prefix_tail in ('32', '34'):
+            return False
+        return bool(getattr(self, 'l10n_do_ncf_expiration_date', False))
+
     def _webpos_ecf_report_ncf_valid_until(self):
-        """Optional field from other modules; never required at install."""
         self.ensure_one()
         exp = getattr(self, 'l10n_do_ncf_expiration_date', False)
         return exp.strftime('%d/%m/%Y') if exp else ''

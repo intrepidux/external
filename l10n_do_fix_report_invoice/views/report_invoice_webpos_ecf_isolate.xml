@@ -10,9 +10,9 @@
                 </div>
                 <span t-field="o.company_id.partner_id" class="text-muted"
                       t-options='{"widget": "contact", "fields": ["address"], "no_marker": true}'/>
-                <span>
+                <span t-if="o._webpos_ecf_report_company_vat()">
                     <strong>RNC:</strong>
-                    <span t-if="o.company_id.vat" t-field="o.company_id.vat"/>
+                    <span t-out="o._webpos_ecf_report_company_vat()"/>
                 </span>
                 <br/>
                 <span t-if="o.invoice_date">
@@ -41,7 +41,7 @@
                     <span t-out="o._webpos_ecf_report_origin_ncf()"/>
                     <br/>
                 </span>
-                <span t-if="webpos_fiscal_number and o._webpos_ecf_report_ncf_valid_until()">
+                <span t-if="o._webpos_ecf_report_show_ncf_valid_until()">
                     <strong>Válida hasta:</strong>
                     <span id="ecf_exp_date" t-out="o._webpos_ecf_report_ncf_valid_until()"/>
                 </span>
@@ -109,7 +109,7 @@
             <attribute name="t-if">False</attribute>
         </xpath>
 
-        <xpath expr="//t[@t-if='is_l10n_do_invoice'][.//t[@t-call='l10n_do_accounting_yasmany.fiscal_info']]" position="replace">
+        <xpath expr="//t[@t-if='is_l10n_do_invoice'][.//t[@t-call]]" position="replace">
             <t t-call="l10n_do_fix_report_invoice.webpos_ecf_fiscal_info"/>
         </xpath>
 

@@ -2,48 +2,57 @@
 <odoo>
 
     <template id="webpos_ecf_fiscal_info">
-        <div id="informations" class="row mt0 mb0">
-            <div class="col-6">
-                <div>
-                    <strong t-field="o.company_id.partner_id.name"/>
-                </div>
-                <span t-field="o.company_id.partner_id" class="text-muted"
-                      t-options='{"widget": "contact", "fields": ["address"], "no_marker": true}'/>
-                <span t-if="o._webpos_ecf_report_company_vat()">
-                    <strong>RNC:</strong>
+        <t t-set="webpos_fiscal_number" t-value="o._webpos_ecf_report_fiscal_number()"/>
+        <!-- Solo bloques rojos referencia: emisor (izq) + comprobante e-CF (der). -->
+        <div id="informations" class="row mt0 mb0 o_webpos_ecf_fiscal_header">
+            <div class="col-7 o_webpos_ecf_emitter">
+                <div class="o_webpos_ecf_emitter_name fw-bold text-uppercase"
+                     t-field="o.company_id.partner_id.name"/>
+                <div t-if="o._webpos_ecf_report_company_vat()" class="o_webpos_ecf_line">
+                    <span class="o_webpos_ecf_label">RNC:</span>
                     <span t-out="o._webpos_ecf_report_company_vat()"/>
-                </span>
-                <br/>
-                <span t-if="o.invoice_date">
-                    <strong>Fecha Emisión:</strong>
+                </div>
+                <div class="o_webpos_ecf_line">
+                    <span class="o_webpos_ecf_label">Dirección:</span>
+                    <span t-field="o.company_id.partner_id" class="text-muted"
+                          t-options='{"widget": "contact", "fields": ["address"], "no_marker": true}'/>
+                </div>
+                <div t-if="o.company_id.phone" class="o_webpos_ecf_line">
+                    <span class="o_webpos_ecf_label">Teléfono:</span>
+                    <span t-field="o.company_id.phone"/>
+                </div>
+                <div t-if="o.company_id.email" class="o_webpos_ecf_line">
+                    <span class="o_webpos_ecf_label">Correo electrónico:</span>
+                    <span t-field="o.company_id.email"/>
+                </div>
+                <div t-if="o.invoice_date" class="o_webpos_ecf_line">
+                    <span class="o_webpos_ecf_label">Fecha de emisión:</span>
                     <span t-out="o.invoice_date.strftime('%d/%m/%Y')"/>
-                </span>
-                <br/>
-                <span t-if="o.invoice_date_due and o.move_type == 'out_invoice' and o.state == 'posted'">
-                    <strong>Vence:</strong>
-                    <span t-out="o.invoice_date_due.strftime('%d/%m/%Y')"/>
-                </span>
+                </div>
             </div>
-            <div class="col-6">
-                <h2>
-                    <span t-out="o._webpos_ecf_report_document_title()"/>
-                </h2>
-                <t t-set="webpos_fiscal_number" t-value="o._webpos_ecf_report_fiscal_number()"/>
-                <strong t-if="webpos_fiscal_number">
-                    <t t-if="o.is_ecf_invoice">e-NCF:</t>
-                    <t t-else="">NCF:</t>
-                </strong>
-                <span t-if="webpos_fiscal_number" t-out="webpos_fiscal_number"/>
-                <br/>
-                <span t-if="(o.move_type in ('out_refund', 'in_refund') or o.debit_origin_id) and o._webpos_ecf_report_origin_ncf()">
-                    <strong>NCF modificado:</strong>
+            <div class="col-5 o_webpos_ecf_doc_box">
+                <div class="o_webpos_ecf_doc_title fw-bold text-end"
+                     t-out="o._webpos_ecf_report_document_title()"/>
+                <div t-if="webpos_fiscal_number" class="o_webpos_ecf_line text-end">
+                    <span class="o_webpos_ecf_label">
+                        <t t-if="o.is_ecf_invoice">e-NCF:</t>
+                        <t t-else="">NCF:</t>
+                    </span>
+                    <span t-out="webpos_fiscal_number"/>
+                </div>
+                <div t-if="o._webpos_ecf_report_show_ncf_valid_until()" class="o_webpos_ecf_line text-end">
+                    <span class="o_webpos_ecf_label">Fecha de vencimiento:</span>
+                    <span t-out="o._webpos_ecf_report_ncf_valid_until()"/>
+                </div>
+                <div class="o_webpos_ecf_line text-end">
+                    <span class="o_webpos_ecf_label">Moneda:</span>
+                    <span t-field="o.currency_id.name"/>
+                </div>
+                <div t-if="(o.move_type in ('out_refund', 'in_refund') or o.debit_origin_id) and o._webpos_ecf_report_origin_ncf()"
+                     class="o_webpos_ecf_line text-end">
+                    <span class="o_webpos_ecf_label">NCF modificado:</span>
                     <span t-out="o._webpos_ecf_report_origin_ncf()"/>
-                    <br/>
-                </span>
-                <span t-if="o._webpos_ecf_report_show_ncf_valid_until()">
-                    <strong>Válida hasta:</strong>
-                    <span id="ecf_exp_date" t-out="o._webpos_ecf_report_ncf_valid_until()"/>
-                </span>
+                </div>
             </div>
         </div>
         <br/>

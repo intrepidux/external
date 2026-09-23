@@ -30,3 +30,32 @@
 .article .o_webpos_ecf_invoice {
     padding-top: 0 !important;
 }
+
+// Solo cabecera fiscal (recuadros rojos referencia): texto más compacto.
+.o_webpos_ecf_fiscal_header {
+    font-size: 9pt;
+    line-height: 1.25;
+}
+
+.o_webpos_ecf_emitter_name {
+    font-size: 1em;
+    margin-bottom: 0.1rem;
+}
+
+.o_webpos_ecf_doc_box {
+    border: 1px solid $gray-600;
+    padding: 0.2rem 0.4rem;
+}
+
+.o_webpos_ecf_doc_title {
+    font-size: 1em;
+    margin-bottom: 0.15rem;
+}
+
+.o_webpos_ecf_fiscal_header .o_webpos_ecf_line {
+    margin-bottom: 0.02rem;
+
+    .o_webpos_ecf_label {
+        font-weight: 600;
+    }
+}

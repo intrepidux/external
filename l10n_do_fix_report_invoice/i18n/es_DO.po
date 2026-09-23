@@ -1,0 +1,446 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* l10n_do_fix_report_invoice
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"POT-Creation-Date: 2026-09-23 13:12+0000\n"
+"Language: es_DO\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "- Installment of"
+msgstr "- Cuota de"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "11.05"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "20.00"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "2021-09-19"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "2023-09-12"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "2023-09-25"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "2023-10-31"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "2024-01-01"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "27.00"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "3.00"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "30.00"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "31.05"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "9.00"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_stamp
+msgid ""
+"\"\n\"<br/>\n\"\n\"                            en esta cuenta:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid ""
+"\"\n\"<br/>\n\"\n\"                    <strong>Contacto:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<br/> on this account:"
+msgstr "<br/> en esta cuenta:"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span> due on </span>"
+msgstr "<span> vence el</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_do_customize
+msgid "<span><strong>E</strong></span>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_do_customize
+msgid ""
+"\"\n\"<span><strong>Original: </strong>Cliente</span>\n\"\n\"                <br/>\n\"\n\"                <span><strong>Copia: </strong>Vendedor</span>\n\"\n\"                <br/>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span>Amount</span>"
+msgstr "<span>Importe</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span>Description</span>"
+msgstr "<span>Descripción</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span>Disc.%</span>"
+msgstr "<span>Desc.%</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_do_customize
+msgid "<span>Monto desc</span>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span>Quantity</span>"
+msgstr "<span>Cantidad</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span>Taxes</span>"
+msgstr "<span>Impuestos</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<span>Unit Price</span>"
+msgstr "<span>Precio unitario</span>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong class=\"d-block mt-3\">Shipping Address</strong>"
+msgstr "<strong class=\"d-block mt-3\">Dirección de envío</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong class=\"mr16\">Subtotal</strong>"
+msgstr "<strong class=\"mr16\">Subtotal</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Credit Note Date</strong>"
+msgstr "<strong>Fecha de la factura rectificativa</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Customer Code</strong>"
+msgstr "<strong>Código de cliente</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_stamp
+msgid "<strong>Código de Seguridad:</strong><br/>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Date</strong>"
+msgstr "<strong>Fecha</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Delivery Date</strong>"
+msgstr "<strong>Fecha de entrega</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Due Date</strong>"
+msgstr "<strong>Fecha de vencimiento</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>Fecha Emisión:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_stamp
+msgid "<strong>Fecha Firma Digital:</strong><br/>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Incoterm</strong>"
+msgstr "<strong>Incoterm</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Invoice Date</strong>"
+msgstr "<strong>Fecha de factura</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>NCF modificado:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>Origen:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>RNC:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Receipt Date</strong>"
+msgstr "<strong>Fecha de recepción</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Reference</strong>"
+msgstr "<strong>Referencia</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>Referencia:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "<strong>Source</strong>"
+msgstr "<strong>Origen</strong>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>Vence:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "<strong>Válida hasta:</strong>"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid ""
+"A note, whose content usually applies to the section or product above."
+msgstr ""
+"\"\n\"Una nota, cuyo contenido generalmente aplica a la sección o producto \"\n\"anterior."
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "A section title"
+msgstr "Un título de sección"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Amount Due"
+msgstr "Importe adeudado"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Bacon Burger"
+msgstr "Hamburguesa de tocino "
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Cancelled Credit Note"
+msgstr "Factura rectificativa cancelada"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Cancelled Invoice"
+msgstr "Factura cancelada"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Credit Note"
+msgstr "Factura rectificativa"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "Cédula:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Draft Credit Note"
+msgstr "Borrador de factura rectificativa"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Draft Invoice"
+msgstr "Borrador de factura"
+
+#. module: l10n_do_fix_report_invoice
+#: model:ir.model,name:l10n_do_fix_report_invoice.model_account_move
+msgid "Herencia para editar el post de la factura webpos"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "ICE:"
+msgstr "ICE:"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "ID Cliente:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "INV/2023/00001"
+msgstr "INV/2023/00001"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "INV/2023/0001"
+msgstr "INV/2023/0001"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Invoice"
+msgstr "Factura"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_custom_header
+msgid "Logo"
+msgstr "Logotipo"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "NCF:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "Nombre:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "PROFORMA"
+msgstr "PROFORMA"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Paid on"
+msgstr "Pagado el"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Payment Communication:"
+msgstr "Comunicación de pago:"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Payment within 30 calendar day"
+msgstr "Pago en un plazo de 30 días naturales"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_stamp
+msgid "QR e-CF"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "RNC:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "Razón Social:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_stamp
+msgid "Referencia de pago:"
+msgstr "Referencia de pago:"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Reversed on"
+msgstr "Revertido el"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "SO123"
+msgstr "SO123"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Scan this QR Code with<br/>your banking application"
+msgstr "Escanee este código de barras con <br/>su aplicación bancaria "
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Tax 15%"
+msgstr "Impuesto 15 %"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Tax ID"
+msgstr "NIF"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Thirty one dollar and Five cents"
+msgstr "Treinta y un dólares con cinco céntimos"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Total amount in words: <br/>"
+msgstr "Importe total con letra: <br/>"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Vendor Bill"
+msgstr "Factura de proveedor"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "Vendor Credit Note"
+msgstr "Factura rectificativa de proveedor"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "due if paid before"
+msgstr "adeudado si se paga antes del"
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.webpos_ecf_fiscal_info
+msgid "e-NCF:"
+msgstr ""
+
+#. module: l10n_do_fix_report_invoice
+#: model_terms:ir.ui.view,arch_db:l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf
+msgid "units"
+msgstr "unidades"
+

@@ -2,11 +2,16 @@
 
 The WebPOS e-CF PDF uses a **standalone** QWeb root `report_invoice_document_webpos_ecf`, cloned from Odoo core `account.report_invoice_document`. It does **not** inherit `account.report_invoice_document`, so `l10n_do_accounting*` sibling views never merge into this report.
 
+## Translations
+
+The frozen base lives in **this** module, so strings are **not** taken from `account` translations. Maintain `i18n/es_DO.po` (export with `-u` / `--i18n-export`, merge new msgids from `account/i18n/es.po` when re-cloning the base).
+
 ## Files
 
 | File | When to edit |
 |------|----------------|
 | `views/report_invoice_document_webpos_ecf_base.xml` | Only when re-cloning from upstream Odoo |
+| `i18n/es_DO.po` | After re-clone or new English labels in base/DO views |
 | `views/report_invoice_webpos_ecf_do.xml` | DO fiscal block, table columns, header |
 | `views/report_invoice_webpos_ecf.xml` | Totals, QR, payment reference layout |
 | `views/report_invoice_webpos_ecf_view_reset.xml` | Migration helper (drops old primary-inherit views on `-u`) |

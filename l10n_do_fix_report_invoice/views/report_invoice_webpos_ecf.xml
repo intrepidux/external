@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Árbol aislado desde account (web): sin heredar cadenas de localización en el documento. -->
+    <template id="report_invoice_document_webpos_ecf"
+              inherit_id="account.report_invoice_document"
+              primary="True"/>
+
+    <template id="report_invoice_document_webpos_ecf_table"
+              inherit_id="l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf">
+
+        <xpath expr="//th[@name='th_description']" position="attributes">
+            <attribute name="style">word-wrap: break-word; word-break: break-word;</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_quantity']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+            <attribute name="style">white-space: nowrap; min-width: 4.75em;</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_priceunit']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+            <attribute name="style">white-space: nowrap; min-width: 6.5em;</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_taxes']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+            <attribute name="style">white-space: nowrap; min-width: 5em;</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_subtotal']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+            <attribute name="style">white-space: nowrap; min-width: 5.5em;</attribute>
+        </xpath>
+
+        <xpath expr="//td[@name='td_quantity']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+        <xpath expr="//td[@name='td_price_unit']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+        <xpath expr="//td[@name='td_taxes']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+        <xpath expr="//td[@name='td_subtotal']" position="attributes">
+            <attribute name="class" add="text-nowrap" separator=" "/>
+        </xpath>
+    </template>
+
+    <!-- e-CF: dentro de payment_term (clearfix) para no romper el float de totales en boxed. -->
+    <template id="report_invoice_document_webpos_ecf_stamp"
+              inherit_id="l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf">
+
+        <xpath expr="//div[@id='payment_term']" position="inside">
+            <div id="webpos_ecf_stamp"
+                 t-if="o.l10n_do_webpos_electronic_stamp"
+                 class="clearfix mb-3 avoid-page-break-inside">
+                <div class="float-start" style="max-width: 55%; text-align: left;">
+                    <div style="display: inline-block; vertical-align: top;">
+                        <img t-if="o.l10n_do_webpos_electronic_stamp_encoded"
+                             alt="QR e-CF"
+                             t-att-src="'/report/barcode/?barcode_type=QR&amp;width=100&amp;height=100&amp;value=' + o.l10n_do_webpos_electronic_stamp_encoded"/>
+                    </div>
+                    <div style="display: inline-block; vertical-align: top; margin-left: 10px;">
+                        <t t-if="o.l10n_do_ecf_security_code">
+                            <strong>Código de Seguridad:</strong><br/>
+                            <span t-out="o.l10n_do_ecf_security_code"/>
+                        </t>
+                        <br t-if="o.l10n_do_ecf_security_code and o.l10n_do_ecf_sign_date"/>
+                        <t t-if="o.l10n_do_ecf_sign_date">
+                            <strong>Fecha Firma Digital:</strong><br/>
+                            <span t-out="context_timestamp(o.l10n_do_ecf_sign_date).strftime('%d-%m-%Y %H:%M:%S')"/>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+</odoo>

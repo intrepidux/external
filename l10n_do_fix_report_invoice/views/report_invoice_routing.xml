@@ -5,7 +5,7 @@
         <xpath expr='//t[@t-call="account.report_invoice_document"]' position="after">
             <t t-elif="o._get_name_invoice_report() == 'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf'"
                t-call="l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf"
-               t-lang="lang"/>
+               t-lang="'es_DO'"/>
         </xpath>
     </template>
 

@@ -115,6 +115,26 @@
             <t t-call="l10n_do_fix_report_invoice.webpos_ecf_fiscal_info"/>
         </xpath>
 
+        <!-- Cabeceras tabla: español fijo (el clon no hereda traducciones de account). -->
+        <xpath expr="//table[@name='invoice_line_table']//th[@name='th_description']/span" position="replace">
+            <span>Descripción</span>
+        </xpath>
+        <xpath expr="//table[@name='invoice_line_table']//th[@name='th_quantity']/span" position="replace">
+            <span>Cantidad</span>
+        </xpath>
+        <xpath expr="//table[@name='invoice_line_table']//th[@name='th_priceunit']/span" position="replace">
+            <span>Precio unitario</span>
+        </xpath>
+        <xpath expr="//table[@name='invoice_line_table']//th[@name='th_taxes']/span" position="replace">
+            <span>Impuestos</span>
+        </xpath>
+        <xpath expr="//table[@name='invoice_line_table']//th[@name='th_subtotal']/span" position="replace">
+            <span>Importe</span>
+        </xpath>
+        <xpath expr="//table[@name='invoice_line_table']//th[@name='th_discount']/span" position="replace">
+            <span>Desc.%</span>
+        </xpath>
+
         <xpath expr="//table[@name='invoice_line_table']/thead/tr//th[@name='th_discount']" position="after">
             <th t-if="display_discount"
                 t-attf-class="text-right {{ 'd-none d-md-table-cell' if report_type == 'html' else '' }}">

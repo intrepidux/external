@@ -4,7 +4,17 @@ The WebPOS e-CF PDF uses a **standalone** QWeb root `report_invoice_document_web
 
 ## Translations
 
-The frozen base lives in **this** module, so strings are **not** taken from `account` translations. Maintain `i18n/es_DO.po` (export with `-u` / `--i18n-export`, merge new msgids from `account/i18n/es.po` when re-cloning the base).
+The frozen base lives in **this** module, so strings are **not** taken from `account` translations.
+
+- WebPOS e-CF PDF renders with **`t-lang="es_DO"`** (not the partner language), so fiscal/table labels stay in Spanish.
+- Table headers are also set in Spanish via `report_invoice_webpos_ecf_do.xml` (no dependency on PO import).
+- After deploy, load PO terms once per database:
+
+```bash
+odoo-bin -d DB -u l10n_do_fix_report_invoice --load-language=es_DO --stop-after-init
+```
+
+Maintain `i18n/es_DO.po` and `i18n/es.po` when re-cloning the base (merge msgids from `account/i18n/es.po`).
 
 ## Files
 

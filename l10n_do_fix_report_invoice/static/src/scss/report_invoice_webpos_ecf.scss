@@ -1,0 +1,9 @@
+// mt-n3 del core pega el cuadro a las líneas y bubble deja ::before sin border-top.
+.o_table_boxed .o_webpos_ecf_totals_gap .o_total_table:not(.o_ignore_layout_styling)::before,
+.o_table_boxed-rounded .o_webpos_ecf_totals_gap .o_total_table:not(.o_ignore_layout_styling)::before {
+    border-top: 1px solid $gray-700 !important;
+}
+
+.o_webpos_ecf_totals_gap {
+    margin-top: 1.25rem !important;
+}

@@ -5,15 +5,17 @@
     "license": "OPL-1",
     "support": "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "18.0.1.0.25",
+    'version': "18.0.1.0.26",
     'depends': [
         'web',
         'account',
         'l10n_do_webpos_fe_base',
     ],
     'data': [
+        'views/report_invoice_webpos_ecf_view_reset.xml',
+        'views/report_invoice_document_webpos_ecf_base.xml',
+        'views/report_invoice_webpos_ecf_do.xml',
         'views/report_invoice_webpos_ecf.xml',
-        'views/report_invoice_webpos_ecf_isolate.xml',
         'views/report_invoice_routing.xml',
     ],
     'assets': {

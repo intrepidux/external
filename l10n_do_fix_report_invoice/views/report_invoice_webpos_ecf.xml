@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <template id="report_invoice_document_webpos_ecf"
-              inherit_id="account.report_invoice_document"
-              primary="True"/>
-
-    <!-- Logo en header (custom_header del snapshot DO): más grande + menos hueco bajo el logo. -->
+    <!-- Logo en header (custom_header): más grande + menos hueco bajo el logo. -->
     <template id="webpos_ecf_custom_header">
         <div class="o_webpos_ecf_header_logo">
             <img t-if="o.company_id.logo"

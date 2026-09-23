@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- One-time migration: primary inherit → standalone clone (same xmlid). -->
+    <delete model="ir.ui.view" search="[('key', 'in', [
+        'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_isolate',
+        'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_do_customize',
+        'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_layout',
+        'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf_stamp',
+        'l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf',
+    ])]"/>
+</odoo>

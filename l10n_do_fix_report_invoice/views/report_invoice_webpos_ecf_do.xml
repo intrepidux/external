@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <!-- Fiscal DO/e-CF propio del módulo (sin t-call a l10n_do_accounting_*). -->
     <template id="webpos_ecf_fiscal_info">
         <div id="informations" class="row mt0 mb0">
             <div class="col-6">
@@ -84,16 +83,10 @@
         </div>
     </template>
 
-    <!-- priority &gt; herencias hermanas en account.report_invoice_document (l10n_do_accounting_*). -->
-    <template id="report_invoice_document_webpos_ecf_isolate"
-              inherit_id="l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf"
-              priority="100">
+    <template id="report_invoice_document_webpos_ecf_do_customize"
+              inherit_id="l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf">
 
-        <xpath expr="//t[@t-set='is_l10n_do_invoice']" position="replace">
-            <t t-set="is_l10n_do_invoice" t-value="False"/>
-        </xpath>
-
-        <xpath expr="//t[@t-set='custom_header']" position="replace">
+        <xpath expr="//t[@t-call='web.external_layout']" position="inside">
             <t t-set="custom_header" t-value="'l10n_do_fix_report_invoice.webpos_ecf_custom_header'"/>
         </xpath>
 
@@ -109,7 +102,7 @@
             <attribute name="t-if">False</attribute>
         </xpath>
 
-        <xpath expr="//t[@t-if='is_l10n_do_invoice'][.//t[@t-call]]" position="replace">
+        <xpath expr="//div[hasclass('page') and hasclass('mb-4')]/div[hasclass('oe_structure')][1]" position="after">
             <t t-call="l10n_do_fix_report_invoice.webpos_ecf_fiscal_info"/>
         </xpath>
 

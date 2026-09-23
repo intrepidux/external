@@ -5,8 +5,26 @@
               inherit_id="account.report_invoice_document"
               primary="True"/>
 
+    <!-- Logo en header (custom_header del snapshot DO): más grande + menos hueco bajo el logo. -->
+    <template id="webpos_ecf_custom_header">
+        <div class="o_webpos_ecf_header_logo">
+            <img t-if="o.company_id.logo"
+                 class="o_webpos_ecf_logo"
+                 t-att-src="image_data_uri(o.company_id.logo)"
+                 alt="Logo"/>
+        </div>
+    </template>
+
     <template id="report_invoice_document_webpos_ecf_layout"
               inherit_id="l10n_do_fix_report_invoice.report_invoice_document_webpos_ecf">
+
+        <xpath expr="//div[hasclass('invoice_main')]" position="attributes">
+            <attribute name="class" add="o_webpos_ecf_invoice" separator=" "/>
+        </xpath>
+
+        <xpath expr="//div[hasclass('page') and hasclass('mb-4')]" position="attributes">
+            <attribute name="class">page mb-1</attribute>
+        </xpath>
 
         <!-- Core instalado: #total.mt-n3 pega el cuadro a las líneas. -->
         <xpath expr="//div[@id='total']" position="attributes">

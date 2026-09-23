@@ -7,3 +7,26 @@
 .o_webpos_ecf_totals_gap {
     margin-top: 1.25rem !important;
 }
+
+.o_webpos_ecf_header_logo .o_webpos_ecf_logo {
+    max-height: 9rem;
+    max-width: 18rem;
+    margin-bottom: 0;
+}
+
+.o_webpos_ecf_invoice {
+    .oe_structure:empty {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #informations {
+        margin-top: 0 !important;
+    }
+}
+
+.article .o_webpos_ecf_invoice {
+    padding-top: 0 !important;
+}

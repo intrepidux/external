@@ -347,7 +347,7 @@ class AccountMove(models.Model):
 
         return description
 
-    def _get_dgii_ecf_modification_code(self, invoice):
+    def _get_dgii_ecf_modification_code(self, invoice, ignore_manual=False):
         """
         Código DGII ``CodigoModificacion`` (InformacionReferencia) para NC/ND.
 
@@ -360,21 +360,23 @@ class AccountMove(models.Model):
         ``3`` (corrige montos). Comparar ND vs total origen y devolver ``1`` sería
         incorrecto en la práctica (coincidencia numérica ≠ anulación).
 
-        Si existe ``l10n_do_ecf_modification_code`` en el move (otros módulos), se respeta.
+        Si existe ``l10n_do_ecf_modification_code`` en el move (otros módulos), se respeta,
+        salvo ``ignore_manual=True`` (vista previa / campo calculado en formulario).
         """
         # Only apply to credit notes (out_refund) and debit notes (out_debit)
         if invoice.move_type not in ('out_refund', 'out_debit'):
             return ''
 
-        manual = getattr(invoice, 'l10n_do_ecf_modification_code', None)
-        if manual not in (None, False, ''):
-            sm = str(manual).strip()
-            try:
-                n = int(sm)
-            except (ValueError, TypeError):
-                n = None
-            if n is not None and 1 <= n <= 5:
-                return str(n)
+        if not ignore_manual:
+            manual = getattr(invoice, 'l10n_do_ecf_modification_code', None)
+            if manual not in (None, False, ''):
+                sm = str(manual).strip()
+                try:
+                    n = int(sm)
+                except (ValueError, TypeError):
+                    n = None
+                if n is not None and 1 <= n <= 5:
+                    return str(n)
 
         # Get the original invoice
         original_invoice = None
@@ -654,6 +656,25 @@ class AccountMove(models.Model):
         self.ensure_one()
         return self._dgii_amount_total_in_dop() < 250000.0
 
+    def _dgii_reconcile_with_reversed_entry(self):
+        """Concilia NC/ND publicadas con la factura origen (misma lógica que _reverse_moves cancel=True)."""
+        from collections import defaultdict
+
+        for move in self:
+            if move.state != 'posted':
+                continue
+            if move.move_type not in ('out_refund', 'in_refund') or not move.reversed_entry_id:
+                continue
+            origin = move.reversed_entry_id
+            if origin.state != 'posted':
+                continue
+            group = defaultdict(list)
+            for line in (origin.line_ids + move.line_ids).filtered(lambda l: not l.reconciled):
+                group[(line.account_id, line.currency_id)].append(line.id)
+            for (account, _currency), line_ids in group.items():
+                if account.reconcile or account.internal_type == 'liquidity':
+                    self.env['account.move.line'].browse(line_ids).reconcile()
+
     def action_post(self):
         # Primero, ejecutar el método original para crear el asiento contable.
         # Esto es necesario para que los campos de la factura estén correctamente
@@ -712,6 +733,13 @@ class AccountMove(models.Model):
                 )
             invoice.xml_print_to_std(xml_content)
 
+        refunds = self.filtered(
+            lambda m: m.state == 'posted'
+            and m.move_type in ('out_refund', 'in_refund')
+            and m.reversed_entry_id
+        )
+        if refunds:
+            refunds._dgii_reconcile_with_reversed_entry()
 
         return res
 

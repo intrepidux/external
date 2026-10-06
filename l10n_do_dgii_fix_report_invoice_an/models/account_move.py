@@ -9,13 +9,42 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    # Override field to make it editable for dgii ecf invoices
+    # Calculado automáticamente (solo lectura en formulario); el XML usa la misma lógica.
     l10n_do_ecf_modification_code = fields.Selection(
         selection="_get_l10n_do_ecf_modification_code",
         string="e-CF Modification Code",
+        compute="_compute_l10n_do_ecf_modification_code",
         copy=False,
-        readonly=False,
+        readonly=True,
+        store=False,
     )
+
+    @api.depends(
+        'move_type',
+        'amount_total',
+        'reversed_entry_id',
+        'reversed_entry_id.amount_total',
+        'debit_origin_id',
+        'invoice_line_ids.price_subtotal',
+        'invoice_line_ids.price_unit',
+        'invoice_line_ids.quantity',
+        'is_ecf_invoice',
+        'journal_id',
+        'l10n_do_origin_ncf',
+        'l10n_latam_country_code',
+    )
+    def _compute_l10n_do_ecf_modification_code(self):
+        for move in self:
+            move.l10n_do_ecf_modification_code = False
+            if not move.is_ecf_invoice or move.l10n_latam_country_code != 'DO':
+                continue
+            if move.move_type not in ('out_refund', 'out_debit'):
+                continue
+            if not (move.journal_id and getattr(move.journal_id, 'is_dgii', False)):
+                continue
+            code = move._get_dgii_ecf_modification_code(move, ignore_manual=True)
+            if code:
+                move.l10n_do_ecf_modification_code = code
 
     def _get_l10n_do_ecf_modification_code(self):
         """ Return the list of e-CF modification codes required by DGII.

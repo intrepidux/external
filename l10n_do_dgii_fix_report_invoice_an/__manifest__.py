@@ -1,5 +1,6 @@
 {
     'name': 'L10n Do dgii fix report invoice AN',
+    'license': 'OPL-1',
     'version': '15.0.1.0.4',
     'depends': [
          'l10n_do_dgii_fe_base', 'web', 'l10n_do_accounting'

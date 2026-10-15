@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': "Dominican Republic - Sequence Control and Alerts",
+    'license': 'OPL-1',
 
     'summary': """
         Control and monitor fiscal sequence usage with alerts and restrictions for Dominican Republic

@@ -4,7 +4,7 @@
     "category": "Localization",
     "summary": "Factura fiscal DO en marco Intrepidux (meta en article + QR footer)",
     "author": "Intrepidux",
-    "license": "LGPL-3",
+    "license": "OPL-1",
     "depends": [
         "itx_document_layout",
         "itx_document_layout_account",

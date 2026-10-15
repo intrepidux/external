@@ -1,5 +1,6 @@
 {
     'name': 'L10n Do dgii fix report invoice VBS',
+    'license': 'OPL-1',
     'version': '1.5',
     'depends': [
         'account',

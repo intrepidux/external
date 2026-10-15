@@ -3,7 +3,7 @@
     'summary': 'Bridge BMC: parches de colisión WebPOS + accounting_update (reporte/vistas)',
     'version': '16.0.1.0.10',
     'category': 'Localization',
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
     'depends': [
         'web',
         'account',

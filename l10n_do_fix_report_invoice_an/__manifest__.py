@@ -1,5 +1,6 @@
 {
     'name': 'L10n Do Fix Report Invoice, AN',
+    'license': 'OPL-1',
     'version': '1.1',
     'depends': ['l10n_do_accounting','l10n_do_webpos_fe_base'],
     'data': [

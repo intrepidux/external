@@ -1,0 +1,46 @@
+# Translation of Odoo Server.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.0\n"
+"Language: es_DO\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. module: l10n_do_dgii_fe_base
+#: model:ir.model.fields,field_description:l10n_do_dgii_fe_base.field_account_move__itx_dgii_estado_label
+msgid "DGII Status Label"
+msgstr "Estado DGII"
+
+#. module: l10n_do_dgii_fe_base
+#: model_terms:ir.ui.view,arch_db:l10n_do_dgii_fe_base.view_out_invoice_tree_itx_dgii_status
+#: model_terms:ir.ui.view,arch_db:l10n_do_dgii_fe_base.view_out_credit_note_tree_itx_dgii_status
+#: model_terms:ir.ui.view,arch_db:l10n_do_dgii_fe_base.view_in_invoice_tree_itx_dgii_status
+#: model_terms:ir.ui.view,arch_db:l10n_do_dgii_fe_base.view_in_invoice_refund_tree_itx_dgii_status
+msgid "Estado DGII"
+msgstr "Estado DGII"
+
+#. module: l10n_do_dgii_fe_base
+#: model:ir.model.fields.selection,name:l10n_do_dgii_fe_base.selection__account_move__itx_dgii_estado_class__approved
+msgid "Approved"
+msgstr "Aceptado"
+
+#. module: l10n_do_dgii_fe_base
+#: model:ir.model.fields.selection,name:l10n_do_dgii_fe_base.selection__account_move__itx_dgii_estado_class__conditional
+msgid "Conditional"
+msgstr "Aceptado condicional"
+
+#. module: l10n_do_dgii_fe_base
+#: model:ir.model.fields.selection,name:l10n_do_dgii_fe_base.selection__account_move__itx_dgii_estado_class__rejected
+msgid "Rejected"
+msgstr "Rechazado"
+
+#. module: l10n_do_dgii_fe_base
+#: model:ir.model.fields.selection,name:l10n_do_dgii_fe_base.selection__account_move__itx_dgii_estado_class__pending
+msgid "Pending"
+msgstr "Pendiente"
+
+#. module: l10n_do_dgii_fe_base
+#: model:ir.model.fields.selection,name:l10n_do_dgii_fe_base.selection__account_move__itx_dgii_estado_class__error
+msgid "Technical error"
+msgstr "Error técnico"

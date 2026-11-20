@@ -777,6 +777,12 @@ class ItxXMLDataDGII(models.Model):
             self.id,
         )
 
+    def _dgii_handle_rejection_on_move(self):
+        self.ensure_one()
+        move = self.account_move_id
+        if move:
+            move._dgii_try_cancel_move_on_rejection(self.dgi_status)
+
     def _apply_dgii_recepcion_from_submit(self, response_data):
         """
         Guarda la respuesta del POST de recepción en ``json_response`` y campos ``dgi_*``.
@@ -817,6 +823,7 @@ class ItxXMLDataDGII(models.Model):
             self.status = 'error_no_enviado'
             self.dgi_status = dgii_label or 'Rechazado'
             self.authorized = False
+            self._dgii_handle_rejection_on_move()
         elif dgii_class == 'approved':
             self.dgi_status = dgii_label or 'Aceptado'
             self.status = 'procesed'
@@ -1264,6 +1271,7 @@ class ItxXMLDataDGII(models.Model):
                     "XML rechazado por DGII: %s, track_id: %s, estado=%s, error: %s",
                     self.name, self.track_id, dgii_label, self.dgi_err_msg,
                 )
+                self._dgii_handle_rejection_on_move()
             elif dgii_class == 'pending':
                 _logger.info(
                     "XML pendiente en DGII: %s, track_id: %s, estado=%s",

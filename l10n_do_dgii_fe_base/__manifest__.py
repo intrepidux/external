@@ -7,7 +7,7 @@
     'license': "OPL-1",
     'support': "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "15.0.0.5",
+    'version': "15.0.0.6",
     'installable': True,
     'application': False,
     'auto_install': False,
@@ -19,6 +19,7 @@
     # always loaded
    'data': [
         'data/account_dgii_data.xml',
+        'data/l10n_do_dgii_fe_config.xml',
         'data/res_country_state_data.xml',
         'data/res.municipality.csv',
         'security/ir.model.access.csv',

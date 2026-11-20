@@ -107,6 +107,85 @@ action = records.action_manual_resend_dgii()
             </field>
         </record>
 
+        <record id="view_out_invoice_tree_itx_dgii_status" model="ir.ui.view">
+            <field name="name">account.out.invoice.tree.itx.dgii.status</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_out_invoice_tree"/>
+            <field name="arch" type="xml">
+                <field name="state" position="after">
+                    <field name="is_dgii" invisible="1"/>
+                    <field name="itx_dgii_estado_class" invisible="1"/>
+                    <field name="itx_dgii_estado_label"
+                           string="Estado DGII"
+                           widget="badge"
+                           optional="show"
+                           attrs="{'invisible': [('is_dgii', '=', False)]}"
+                           decoration-success="itx_dgii_estado_class == 'approved'"
+                           decoration-warning="itx_dgii_estado_class in ('conditional', 'pending', 'unknown')"
+                           decoration-danger="itx_dgii_estado_class in ('rejected', 'error')"/>
+                </field>
+            </field>
+        </record>
+
+        <record id="view_out_credit_note_tree_itx_dgii_status" model="ir.ui.view">
+            <field name="name">account.out.credit.note.tree.itx.dgii.status</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_out_credit_note_tree"/>
+            <field name="arch" type="xml">
+                <field name="state" position="after">
+                    <field name="is_dgii" invisible="1"/>
+                    <field name="itx_dgii_estado_class" invisible="1"/>
+                    <field name="itx_dgii_estado_label"
+                           string="Estado DGII"
+                           widget="badge"
+                           optional="show"
+                           attrs="{'invisible': [('is_dgii', '=', False)]}"
+                           decoration-success="itx_dgii_estado_class == 'approved'"
+                           decoration-warning="itx_dgii_estado_class in ('conditional', 'pending', 'unknown')"
+                           decoration-danger="itx_dgii_estado_class in ('rejected', 'error')"/>
+                </field>
+            </field>
+        </record>
+
+        <record id="view_in_invoice_tree_itx_dgii_status" model="ir.ui.view">
+            <field name="name">account.in.invoice.tree.itx.dgii.status</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_in_invoice_tree"/>
+            <field name="arch" type="xml">
+                <field name="state" position="after">
+                    <field name="is_dgii" invisible="1"/>
+                    <field name="itx_dgii_estado_class" invisible="1"/>
+                    <field name="itx_dgii_estado_label"
+                           string="Estado DGII"
+                           widget="badge"
+                           optional="show"
+                           attrs="{'invisible': [('is_dgii', '=', False)]}"
+                           decoration-success="itx_dgii_estado_class == 'approved'"
+                           decoration-warning="itx_dgii_estado_class in ('conditional', 'pending', 'unknown')"
+                           decoration-danger="itx_dgii_estado_class in ('rejected', 'error')"/>
+                </field>
+            </field>
+        </record>
+
+        <record id="view_in_invoice_refund_tree_itx_dgii_status" model="ir.ui.view">
+            <field name="name">account.in.invoice.refund.tree.itx.dgii.status</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_in_invoice_refund_tree"/>
+            <field name="arch" type="xml">
+                <field name="state" position="after">
+                    <field name="is_dgii" invisible="1"/>
+                    <field name="itx_dgii_estado_class" invisible="1"/>
+                    <field name="itx_dgii_estado_label"
+                           string="Estado DGII"
+                           widget="badge"
+                           optional="show"
+                           attrs="{'invisible': [('is_dgii', '=', False)]}"
+                           decoration-success="itx_dgii_estado_class == 'approved'"
+                           decoration-warning="itx_dgii_estado_class in ('conditional', 'pending', 'unknown')"
+                           decoration-danger="itx_dgii_estado_class in ('rejected', 'error')"/>
+                </field>
+            </field>
+        </record>
 
     </data>
 </odoo>

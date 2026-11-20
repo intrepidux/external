@@ -17,8 +17,12 @@ _logger = logging.getLogger(__name__)
 ICP_DEBUG_REPORT_QR = 'l10n_do_dgii_fe_base.debug_report_qr'
 ICP_QR_STAMP_V2_MIGRATED = 'l10n_do_dgii_fe_base.qr_stamp_v2_migrated'
 ICP_QR_STAMP_V3_CODIGO = 'l10n_do_dgii_fe_base.qr_stamp_v3_codigo_encoded'
+ICP_AUTO_CANCEL_ON_REJECTION = 'l10n_do_dgii_fe_base.auto_cancel_on_rejection'
+ICP_REJECTION_CANCELLATION_TYPE = 'l10n_do_dgii_fe_base.rejection_cancellation_type'
 
 import datetime
+
+from .itx_xml_data_dgii import dgii_estado_classification
 
 
 class AccountMove(models.Model):
@@ -61,7 +65,28 @@ class AccountMove(models.Model):
     itx_dgii_dgi_err_msg = fields.Text(related='itx_xml_data_id.dgi_err_msg', string='DGII Error Message', store=True)
     # itx_dgii_json_response = fields.Text(related='itx_xml_data_id.json_response', string='Json Response DGII')  # Descomentar si es necesario
 
-    
+    ITX_DGII_ESTADO_CLASS_SELECTION = [
+        ('none', 'Not applicable'),
+        ('approved', 'Approved'),
+        ('conditional', 'Conditional'),
+        ('rejected', 'Rejected'),
+        ('pending', 'Pending'),
+        ('error', 'Technical error'),
+        ('unknown', 'Unknown'),
+    ]
+
+    itx_dgii_estado_class = fields.Selection(
+        selection=ITX_DGII_ESTADO_CLASS_SELECTION,
+        string='DGII Status Class',
+        compute='_compute_itx_dgii_estado_display',
+        store=True,
+        index=True,
+    )
+    itx_dgii_estado_label = fields.Char(
+        string='DGII Status Label',
+        compute='_compute_itx_dgii_estado_display',
+        store=True,
+    )
 
     # Sello DGII: URL legible (canónica). Encode para barcode en itx_dgii_electronic_stamp_encoded.
     itx_dgii_electronic_stamp = fields.Char(
@@ -85,6 +110,126 @@ class AccountMove(models.Model):
         related='journal_id.is_dgii',
         store=True,
     )
+
+    @api.depends(
+        'is_dgii',
+        'journal_id.is_dgii',
+        'itx_dgii_dgi_status',
+        'itx_dgii_status',
+    )
+    def _compute_itx_dgii_estado_display(self):
+        fallback_labels = {
+            'approved': _('Accepted'),
+            'conditional': _('Conditionally accepted'),
+            'rejected': _('Rejected'),
+            'pending': _('Pending verification'),
+            'error': _('Technical error'),
+            'unknown': _('Unknown'),
+            'none': '',
+        }
+        for move in self:
+            if not move.is_dgii:
+                move.itx_dgii_estado_class = 'none'
+                move.itx_dgii_estado_label = False
+                continue
+            label = (move.itx_dgii_dgi_status or '').strip()
+            dgii_class = dgii_estado_classification(label) if label else 'unknown'
+            tech = move.itx_dgii_status
+            if not label:
+                if tech == 'pending':
+                    dgii_class = 'pending'
+                elif tech == 'procesed':
+                    dgii_class = 'approved'
+                elif tech in ('error', 'error_no_enviado'):
+                    dgii_class = 'error'
+                elif tech == 'sent':
+                    dgii_class = 'pending'
+            if dgii_class == 'unknown' and tech in ('error', 'error_no_enviado'):
+                low = label.lower() if label else ''
+                dgii_class = 'rejected' if 'rechaz' in low else 'error'
+            if dgii_class == 'unknown' and not label and not tech:
+                dgii_class = 'pending'
+            move.itx_dgii_estado_class = dgii_class
+            move.itx_dgii_estado_label = label or fallback_labels.get(dgii_class) or dgii_class
+
+    def _dgii_has_reconciled_ar_ap_lines(self):
+        self.ensure_one()
+        for line in self.line_ids.filtered(
+            lambda l: l.account_id.internal_type in ('receivable', 'payable')
+        ):
+            if line.matched_debit_ids or line.matched_credit_ids:
+                return True
+        return False
+
+    def _dgii_try_cancel_move_on_rejection(self, dgii_label=None):
+        """Cancel posted move when DGII rejects, if safe (not paid, no AR/AP reconcile)."""
+        self.ensure_one()
+        icp = self.env['ir.config_parameter'].sudo()
+        if icp.get_param(ICP_AUTO_CANCEL_ON_REJECTION, 'True') != 'True':
+            return False
+        if self.state != 'posted':
+            return False
+        if self.payment_state != 'not_paid':
+            self.message_post(
+                body=_(
+                    "DGII rejected this document (%(status)s). "
+                    "Automatic cancellation was skipped because payment state is %(pmt)s."
+                )
+                % {
+                    'status': dgii_label or self.itx_dgii_dgi_status or _('Rejected'),
+                    'pmt': self.payment_state,
+                }
+            )
+            return False
+        if self._dgii_has_reconciled_ar_ap_lines():
+            self.message_post(
+                body=_(
+                    "DGII rejected this document (%(status)s). "
+                    "Automatic cancellation was skipped because receivable/payable lines are reconciled."
+                )
+                % {'status': dgii_label or self.itx_dgii_dgi_status or _('Rejected')}
+            )
+            return False
+        cancel_type = icp.get_param(ICP_REJECTION_CANCELLATION_TYPE, '04')
+        vals = {'state': 'cancel'}
+        if 'l10n_do_cancellation_type' in self._fields:
+            vals['l10n_do_cancellation_type'] = cancel_type
+        try:
+            self.write(vals)
+        except Exception as exc:
+            _logger.warning(
+                "DGII rejection auto-cancel failed for move %s: %s", self.id, exc
+            )
+            self.message_post(
+                body=_(
+                    "DGII rejected this document (%(status)s). "
+                    "Automatic cancellation failed: %(error)s"
+                )
+                % {
+                    'status': dgii_label or self.itx_dgii_dgi_status or _('Rejected'),
+                    'error': exc,
+                }
+            )
+            return False
+        self.message_post(
+            body=_(
+                "DGII rejected this document (%(status)s). "
+                "The invoice was cancelled automatically (cancellation type %(ctype)s)."
+            )
+            % {
+                'status': dgii_label or self.itx_dgii_dgi_status or _('Rejected'),
+                'ctype': cancel_type,
+            }
+        )
+        return True
+
+    @api.model
+    def action_recompute_itx_dgii_estado_display(self):
+        moves = self.search([('journal_id.is_dgii', '=', True)])
+        if moves:
+            moves._compute_itx_dgii_estado_display()
+        return True
+
     # Campos para facturación electrónica DGII, mover cerca de itx_dgii_electronic_stamp_encoded    
     l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)
     l10n_do_ecf_sign_date = fields.Datetime(string="e-CF Sign Date", copy=False)

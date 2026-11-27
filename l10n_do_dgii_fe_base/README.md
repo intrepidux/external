@@ -272,9 +272,30 @@ Para reportar problemas o solicitar mejoras, contactar al equipo de desarrollo.
 
 ## Versión
 
-15.0.0.8 — Bloqueo de borrador en e-CF enviados; omisión opcional con permiso, wizard y motivo en chatter.
+15.0.0.9 — Bloqueo e-CF por códigos/estado DGII estructurados (1209 vs 615); sin falso positivo por `secuenciaUtilizada`.
+
+## Bloqueo borrador e-CF (reglas 15.0.0.9)
+
+| Evidencia (cada `itx.xml.data.dgii` con envío) | Bloquear borrador/cancel |
+|------------------------------------------------|--------------------------|
+| Sin envío (`status` fuera de sent/procesed/error_no_enviado) | No |
+| Aceptado / Aceptado condicional | Sí |
+| En proceso / pendiente DGII | Sí |
+| Rechazado con código **1209** en `mensajes[]` | Sí |
+| Rechazado solo códigos de contenido (615, etc.) **sin** 1209 | No (ignorar `secuenciaUtilizada`) |
+| Envío con respuesta no parseable | Sí (fail-safe) |
+
+Si **cualquier** log del comprobante exige bloqueo, el move queda bloqueado.
+
+`secuenciaUtilizada` en la respuesta de recepción indica que el e-NCF fue asignado en ese POST; en rechazos 615 **no** equivale a duplicado 1209.
 
 ## Changelog
+
+### 15.0.0.9
+- Lock por códigos DGII en `mensajes[]` y estado (`dgii_recepcion`), no por subcadenas `secuencia`/`utiliz` en JSON.
+- Rechazos **615** con `secuenciaUtilizada: true` permiten borrador/cancel sin bypass.
+- Migración one-shot: recalcula `itx_ecf_lock_draft` y chatter en desbloqueos (ICP `ecf_lock_recompute_v9`).
+- Tests ampliados en `tests/test_ecf_draft_lock.py`.
 
 ### 15.0.0.8
 - Grupo **Omitir bloqueo borrador e-CF** (incluido en Responsable de contabilidad): wizard con motivo obligatorio; auditoría en chatter.

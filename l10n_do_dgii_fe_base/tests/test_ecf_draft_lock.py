@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 import json
 
+from lxml import etree
+
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.exceptions import UserError
+
+_ECF_LOCK_BANNER_TEXT = 'e-CF enviado a la DGII'
 
 
 @tagged('post_install', '-at_install')
@@ -62,6 +66,80 @@ class TestEcfDraftLock(TransactionCase):
         if extra:
             rec.update(extra)
         return json.dumps({'dgii_recepcion': rec})
+
+    def _form_doc(self, move):
+        arch = move.fields_view_get(view_type='form')['arch']
+        if isinstance(arch, str):
+            arch = arch.encode('utf-8')
+        return etree.fromstring(arch)
+
+    def _element_hidden_for_move(self, move, elem):
+        """True when the node would be invisible on this move's form."""
+        modifiers = elem.get('modifiers')
+        if modifiers:
+            invisible = json.loads(modifiers).get('invisible', False)
+            if invisible is True:
+                return True
+            if not invisible:
+                return False
+            if isinstance(invisible, list):
+                return bool(move.filtered_domain(invisible))
+        attrs = elem.get('attrs') or ''
+        if 'itx_ecf_lock_draft' not in attrs:
+            return False
+        return move.itx_ecf_lock_draft and "'=', True)]}" in attrs
+
+    def _ecf_lock_banners(self, doc):
+        return doc.xpath(
+            "//div[contains(@class,'alert-info')]"
+            f"[contains(., '{_ECF_LOCK_BANNER_TEXT}')]"
+        )
+
+    def test_form_arch_locked_hides_actions(self):
+        move = self._create_posted_move()
+        self._xml_log(
+            move,
+            status='procesed',
+            dgi_status='Aceptado',
+        )
+        self.assertTrue(move.itx_ecf_lock_draft)
+        doc = self._form_doc(move)
+        draft_btn = doc.xpath("//button[@name='button_draft']")
+        self.assertEqual(len(draft_btn), 1)
+        self.assertTrue(self._element_hidden_for_move(move, draft_btn[0]))
+        for btn in doc.xpath("//header//button[@name='button_cancel']"):
+            self.assertTrue(
+                self._element_hidden_for_move(move, btn),
+                'button_cancel should be invisible when e-CF lock is active',
+            )
+        banners = self._ecf_lock_banners(doc)
+        self.assertEqual(len(banners), 1)
+        self.assertFalse(self._element_hidden_for_move(move, banners[0]))
+
+    def test_form_arch_unlocked_shows_actions(self):
+        move = self._create_posted_move()
+        self.assertFalse(move.itx_ecf_lock_draft)
+        doc = self._form_doc(move)
+        draft_btn = doc.xpath("//button[@name='button_draft']")
+        self.assertEqual(len(draft_btn), 1)
+        self.assertFalse(self._element_hidden_for_move(move, draft_btn[0]))
+        banners = self._ecf_lock_banners(doc)
+        self.assertEqual(len(banners), 1)
+        self.assertTrue(self._element_hidden_for_move(move, banners[0]))
+
+    def test_form_arch_unlocked_after_content_rejection(self):
+        move = self._create_posted_move()
+        self._xml_log(
+            move,
+            status='error_no_enviado',
+            dgi_status='Rechazado',
+            dgi_err_msg='615: monto en pesos invalido',
+        )
+        self.assertFalse(move.itx_ecf_lock_draft)
+        doc = self._form_doc(move)
+        draft_btn = doc.xpath("//button[@name='button_draft']")[0]
+        self.assertFalse(self._element_hidden_for_move(move, draft_btn))
+        self.assertTrue(self._element_hidden_for_move(move, self._ecf_lock_banners(doc)[0]))
 
     def test_draft_allowed_without_xml_log(self):
         move = self._create_posted_move()

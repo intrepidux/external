@@ -7,7 +7,7 @@
     'license': "OPL-1",
     'support': "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "15.0.0.9",
+    'version': "15.0.0.10",
     'installable': True,
     'application': False,
     'auto_install': False,

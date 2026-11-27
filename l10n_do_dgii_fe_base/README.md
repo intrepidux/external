@@ -291,6 +291,11 @@ Si **cualquier** log del comprobante exige bloqueo, el move queda bloqueado.
 
 ## Changelog
 
+### 15.0.0.10
+- Formulario `account.move`: aviso informativo (e-CF enviado a la DGII) cuando `itx_ecf_lock_draft`.
+- Ocultación de **Restablecer a borrador** y **Cancelar** combinando attrs con `show_reset_to_draft_button` y reglas DO en `button_cancel` (prioridad de vista 50).
+- Tests de arquitectura del formulario en `tests/test_ecf_draft_lock.py`.
+
 ### 15.0.0.9
 - Lock por códigos DGII en `mensajes[]` y estado (`dgii_recepcion`), no por subcadenas `secuencia`/`utiliz` en JSON.
 - Rechazos **615** con `secuenciaUtilizada: true` permiten borrador/cancel sin bypass.

@@ -19,14 +19,18 @@ ICP_QR_STAMP_V2_MIGRATED = 'l10n_do_dgii_fe_base.qr_stamp_v2_migrated'
 ICP_QR_STAMP_V3_CODIGO = 'l10n_do_dgii_fe_base.qr_stamp_v3_codigo_encoded'
 ICP_AUTO_CANCEL_ON_REJECTION = 'l10n_do_dgii_fe_base.auto_cancel_on_rejection'
 ICP_REJECTION_CANCELLATION_TYPE = 'l10n_do_dgii_fe_base.rejection_cancellation_type'
+ICP_ECF_LOCK_RECOMPUTE_V9 = 'l10n_do_dgii_fe_base.ecf_lock_recompute_v9'
 
 import datetime
 
-from .itx_xml_data_dgii import dgii_estado_classification
+from .itx_xml_data_dgii import (
+    dgii_estado_classification,
+    ecf_dgii_xml_log_blocks_draft,
+)
 
 
-def _ecf_xml_indicates_sequence_consumed(xml_rec):
-    """True if DGII rejected because the NCF sequence was already used (e.g. 1209)."""
+def _ecf_xml_indicates_sequence_consumed_legacy(xml_rec):
+    """Pre-15.0.0.9: substring en mensajes/JSON (incl. secuenciaUtilizada en 615)."""
     blobs = []
     for attr in ('dgi_err_msg', 'error', 'json_response'):
         val = getattr(xml_rec, attr, None) or ''
@@ -44,13 +48,16 @@ def _ecf_xml_indicates_sequence_consumed(xml_rec):
     return False
 
 
-def _ecf_xml_indicates_accepted(xml_rec):
+def _ecf_xml_indicates_accepted_legacy(xml_rec):
     label = (xml_rec.dgi_status or '').strip().lower().replace(' ', '')
     if label and 'rechazado' in label:
         return False
     if label and 'aceptado' in label:
         return True
-    return xml_rec.status == 'procesed' and not _ecf_xml_indicates_sequence_consumed(xml_rec)
+    return (
+        xml_rec.status == 'procesed'
+        and not _ecf_xml_indicates_sequence_consumed_legacy(xml_rec)
+    )
 
 
 class AccountMove(models.Model):
@@ -275,11 +282,22 @@ class AccountMove(models.Model):
         if not (self.is_ecf_invoice and self.journal_id.is_dgii):
             return False
         for xml_rec in self._ecf_dgii_xml_logs():
+            blocks, _reason = ecf_dgii_xml_log_blocks_draft(xml_rec)
+            if blocks:
+                return True
+        return False
+
+    def _ecf_dgii_is_locked_for_draft_legacy(self):
+        """Lock según regla 15.0.0.8 (solo migración v9)."""
+        self.ensure_one()
+        if not (self.is_ecf_invoice and self.journal_id.is_dgii):
+            return False
+        for xml_rec in self._ecf_dgii_xml_logs():
             if xml_rec.status not in ('sent', 'procesed', 'error_no_enviado'):
                 continue
-            if _ecf_xml_indicates_accepted(xml_rec):
+            if _ecf_xml_indicates_accepted_legacy(xml_rec):
                 return True
-            if _ecf_xml_indicates_sequence_consumed(xml_rec):
+            if _ecf_xml_indicates_sequence_consumed_legacy(xml_rec):
                 return True
             label = (xml_rec.dgi_status or '').lower()
             if xml_rec.status in ('sent', 'procesed') and (
@@ -293,6 +311,7 @@ class AccountMove(models.Model):
         'journal_id.is_dgii',
         'itx_xml_data_ids.status',
         'itx_xml_data_ids.dgi_status',
+        'itx_xml_data_ids.json_response',
         'itx_xml_data_id',
     )
     def _compute_itx_ecf_lock_draft(self):
@@ -505,10 +524,56 @@ class AccountMove(models.Model):
             len(moves),
         )
 
+    @api.model
+    def _migrate_ecf_lock_recompute_v9(self):
+        """Recalcula itx_ecf_lock_draft (615 vs 1209) y audita desbloqueos en chatter."""
+        icp = self.env['ir.config_parameter'].sudo()
+        if icp.get_param(ICP_ECF_LOCK_RECOMPUTE_V9):
+            return
+        domain = [
+            ('journal_id.is_dgii', '=', True),
+            ('itx_xml_data_ids', '!=', False),
+            ('move_type', 'in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')),
+        ]
+        moves = self.sudo().search(domain)
+        unlocked = 0
+        locked_new = 0
+        unchanged = 0
+        for move in moves:
+            if not move.is_ecf_invoice:
+                continue
+            old_lock = move._ecf_dgii_is_locked_for_draft_legacy()
+            new_lock = move._ecf_dgii_is_locked_for_draft()
+            if old_lock and not new_lock:
+                move.message_post(
+                    body=_(
+                        'Bloqueo e-CF recalculado (15.0.0.9): desbloqueado — '
+                        'rechazo de contenido sin código 1209.'
+                    ),
+                    message_type='notification',
+                )
+                unlocked += 1
+            elif not old_lock and new_lock:
+                locked_new += 1
+            else:
+                unchanged += 1
+        if moves:
+            moves.invalidate_cache(fnames=['itx_ecf_lock_draft'])
+            moves._compute_itx_ecf_lock_draft()
+        icp.set_param(ICP_ECF_LOCK_RECOMPUTE_V9, '1')
+        _logger.info(
+            '[DGII][ecf_lock_v9] moves=%s unlocked=%s locked_new=%s unchanged=%s',
+            len(moves),
+            unlocked,
+            locked_new,
+            unchanged,
+        )
+
     def _register_hook(self):
         res = super()._register_hook()
         self.env['account.move']._migrate_dgii_qr_stamps_v2()
         self.env['account.move']._migrate_dgii_qr_stamps_v3_codigo()
+        self.env['account.move']._migrate_ecf_lock_recompute_v9()
         return res
 
     @api.model

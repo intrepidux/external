@@ -224,6 +224,147 @@ def dgii_estado_classification(label):
     return 'unknown'
 
 
+ECF_DGII_SEQUENCE_CONSUMED_CODE = '1209'
+
+# ``secuenciaUtilizada`` en la recepción DGII indica que el e-NCF quedó asignado en ese
+# POST; en rechazos de contenido (p. ej. 615) no implica duplicado ni código 1209.
+# Ver documentación DGII e-CF (respuesta de recepción / validación).
+
+_DGII_XML_SENT_STATUSES = frozenset({'sent', 'procesed', 'error_no_enviado'})
+
+
+def _dgii_normalize_mensajes_list(mensajes):
+    if mensajes is None:
+        return []
+    if isinstance(mensajes, dict):
+        return [mensajes]
+    if isinstance(mensajes, (list, tuple)):
+        return list(mensajes)
+    return []
+
+
+def dgii_mensaje_codigos_from_response_data(response_data):
+    """Extrae códigos numéricos DGII desde ``mensajes[]`` de la respuesta estructurada."""
+    codes = set()
+    if not isinstance(response_data, dict):
+        return codes
+    rec = _dgii_recepcion_dict_from_data(response_data) or {}
+    raw_lists = [
+        rec.get('mensajes'),
+        rec.get('messages'),
+        rec.get('Mensajes'),
+        response_data.get('mensajes'),
+        response_data.get('messages'),
+        response_data.get('Mensajes'),
+    ]
+    for raw in raw_lists:
+        for item in _dgii_normalize_mensajes_list(raw):
+            if not isinstance(item, dict):
+                continue
+            cod = item.get('codigo', item.get('Codigo', item.get('code')))
+            if cod is None:
+                continue
+            s = str(cod).strip()
+            if s:
+                codes.add(s)
+    return codes
+
+
+def dgii_mensaje_codigos_from_xml_log(xml_rec):
+    """Códigos desde ``json_response``; fallback ``dgi_err_msg`` con prefijo ``CODIGO:``."""
+    codes = set()
+    json_blob = getattr(xml_rec, 'json_response', None) or ''
+    if json_blob:
+        data = _dgii_parse_json_dict_from_text(json_blob)
+        if data:
+            codes |= dgii_mensaje_codigos_from_response_data(data)
+    err = getattr(xml_rec, 'dgi_err_msg', None) or ''
+    for part in err.split('|'):
+        part = part.strip()
+        match = re.match(r'^(\d+)\s*:', part)
+        if match:
+            codes.add(match.group(1))
+    return codes
+
+
+def ecf_dgii_xml_log_blocks_draft(xml_rec):
+    """
+    Reglas borrador/cancel e-CF por log XML.
+
+    Returns:
+        (blocks_draft, reason): reason in accepted|conditional|pending|code_1209|
+        unparseable, or None when this log does not block.
+    """
+    status = getattr(xml_rec, 'status', None)
+    if status not in _DGII_XML_SENT_STATUSES:
+        return False, None
+
+    data = None
+    json_blob = getattr(xml_rec, 'json_response', None) or ''
+    if json_blob:
+        data = _dgii_parse_json_dict_from_text(json_blob)
+
+    label = dgii_estado_label_from_response(data) if data else ''
+    if not label:
+        label = (getattr(xml_rec, 'dgi_status', None) or '').strip()
+
+    if not label and not data and status in _DGII_XML_SENT_STATUSES:
+        _logger.warning(
+            '[DGII][ecf_lock] respuesta no parseable | itx_id=%s status=%s',
+            getattr(xml_rec, 'id', None),
+            status,
+        )
+        return True, 'unparseable'
+
+    dgii_class = dgii_estado_classification(label)
+
+    if dgii_class == 'approved':
+        return True, 'accepted'
+    if dgii_class == 'conditional':
+        return True, 'conditional'
+    if dgii_class == 'pending':
+        return True, 'pending'
+
+    label_lower = (label or '').lower()
+    if status in ('sent', 'procesed') and (
+        'proceso' in label_lower or 'pendiente' in label_lower
+    ):
+        return True, 'pending'
+
+    if dgii_class == 'rejected' or (
+        status == 'error_no_enviado' and 'rechazado' in label_lower
+    ):
+        codes = dgii_mensaje_codigos_from_xml_log(xml_rec)
+        if ECF_DGII_SEQUENCE_CONSUMED_CODE in codes:
+            return True, 'code_1209'
+        if codes:
+            return False, None
+        _logger.warning(
+            '[DGII][ecf_lock] rechazado sin códigos parseables | itx_id=%s',
+            getattr(xml_rec, 'id', None),
+        )
+        return True, 'unparseable'
+
+    if status == 'procesed' and dgii_class == 'unknown':
+        key = (label or '').replace(' ', '').lower()
+        if 'aceptado' in key and 'condicional' not in key:
+            return True, 'accepted'
+
+    if (
+        status in _DGII_XML_SENT_STATUSES
+        and dgii_class == 'unknown'
+        and not (data and dgii_mensaje_codigos_from_response_data(data))
+    ):
+        _logger.warning(
+            '[DGII][ecf_lock] estado envío desconocido | itx_id=%s label=%s',
+            getattr(xml_rec, 'id', None),
+            label,
+        )
+        return True, 'unparseable'
+
+    return False, None
+
+
 class ItxXMLDataDGII(models.Model):
     _name = 'itx.xml.data.dgii'
     _description = 'Maneja el procesamiento de documento XML para DGII'

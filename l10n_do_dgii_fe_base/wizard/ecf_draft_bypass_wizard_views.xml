@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_ecf_draft_bypass_wizard_form" model="ir.ui.view">
+            <field name="name">ecf.draft.bypass.wizard.form</field>
+            <field name="model">ecf.draft.bypass.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Omitir bloqueo e-CF">
+                    <div class="alert alert-warning" role="alert">
+                        <p>
+                            <strong>Atención:</strong> este comprobante ya fue enviado a la DGII
+                            (aceptado, en proceso o secuencia consumida). Restablecerlo puede
+                            provocar doble facturación o secuencias inválidas.
+                        </p>
+                    </div>
+                    <group>
+                        <field name="move_id"/>
+                        <field name="action" widget="radio"/>
+                    </group>
+                    <group>
+                        <field name="reason" placeholder="Ej.: corrección nota de crédito 00184 antes de cancelar…"/>
+                    </group>
+                    <footer>
+                        <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"/>
+                        <button string="Descartar" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <record id="action_ecf_draft_bypass_wizard" model="ir.actions.act_window">
+            <field name="name">Omitir bloqueo e-CF</field>
+            <field name="res_model">ecf.draft.bypass.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+    </data>
+</odoo>

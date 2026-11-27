@@ -198,6 +198,13 @@ action = records.action_manual_resend_dgii()
                 <xpath expr="//button[@name='button_draft']" position="attributes">
                     <attribute name="attrs">{'invisible': ['|', ('state', '!=', 'posted'), ('itx_ecf_lock_draft', '=', True)]}</attribute>
                 </xpath>
+                <xpath expr="//button[@name='button_draft']" position="after">
+                    <button name="action_ecf_draft_bypass_wizard"
+                            type="object"
+                            string="Omitir bloqueo e-CF…"
+                            groups="l10n_do_dgii_fe_base.group_ecf_draft_bypass"
+                            attrs="{'invisible': ['|', ('state', '!=', 'posted'), ('itx_ecf_lock_draft', '=', False)]}"/>
+                </xpath>
             </field>
         </record>
 

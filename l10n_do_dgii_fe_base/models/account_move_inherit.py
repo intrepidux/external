@@ -306,15 +306,68 @@ class AccountMove(models.Model):
             'Registre una nota de crédito (E34) o nota de débito (E33) según corresponda.'
         ))
 
+    def _ecf_user_can_bypass_draft_lock(self):
+        return self.env.user.has_group(
+            'l10n_do_dgii_fe_base.group_ecf_draft_bypass'
+        )
+
+    def _ecf_draft_bypass_active(self):
+        return bool(self.env.context.get('ecf_draft_bypass'))
+
+    def _ecf_post_draft_bypass_chatter(self, action_label):
+        self.ensure_one()
+        reason = (self.env.context.get('ecf_draft_bypass_reason') or '').strip()
+        body = _(
+            'Omisión del bloqueo e-CF (%(action)s) por %(user)s. Motivo: %(reason)s'
+        ) % {
+            'action': action_label,
+            'user': self.env.user.display_name,
+            'reason': reason or _('(sin texto)'),
+        }
+        self.message_post(body=body)
+
+    def action_ecf_draft_bypass_wizard(self):
+        self.ensure_one()
+        if not self._ecf_dgii_is_locked_for_draft():
+            raise UserError(_(
+                'Este comprobante no está bloqueado por e-CF; use el botón habitual.'
+            ))
+        if not self._ecf_user_can_bypass_draft_lock():
+            raise UserError(_(
+                'No tiene permiso para omitir el bloqueo de borrador e-CF.'
+            ))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Omitir bloqueo e-CF'),
+            'res_model': 'ecf.draft.bypass.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_move_id': self.id,
+                'active_id': self.id,
+            },
+        }
+
     def button_draft(self):
         locked = self.filtered(lambda m: m._ecf_dgii_is_locked_for_draft())
+        bypass = self._ecf_draft_bypass_active()
         if locked:
-            locked[:1]._ecf_dgii_raise_draft_lock_error()
+            if not bypass:
+                locked[:1]._ecf_dgii_raise_draft_lock_error()
+            if not locked[:1]._ecf_user_can_bypass_draft_lock():
+                raise UserError(_(
+                    'No tiene permiso para omitir el bloqueo de borrador e-CF.'
+                ))
         for move in self:
-            if (
+            if bypass and move in locked:
+                move._ecf_post_draft_bypass_chatter(
+                    _('restablecer a borrador')
+                )
+            elif (
                 move.is_ecf_invoice
                 and move.journal_id.is_dgii
                 and move._ecf_dgii_xml_logs()
+                and move not in locked
             ):
                 move.message_post(
                     body=_(
@@ -325,8 +378,17 @@ class AccountMove(models.Model):
 
     def button_cancel(self):
         locked = self.filtered(lambda m: m._ecf_dgii_is_locked_for_draft())
+        bypass = self._ecf_draft_bypass_active()
         if locked:
-            locked[:1]._ecf_dgii_raise_draft_lock_error()
+            if not bypass:
+                locked[:1]._ecf_dgii_raise_draft_lock_error()
+            if not locked[:1]._ecf_user_can_bypass_draft_lock():
+                raise UserError(_(
+                    'No tiene permiso para omitir el bloqueo de borrador e-CF.'
+                ))
+        for move in locked:
+            if bypass:
+                move._ecf_post_draft_bypass_chatter(_('cancelar'))
         return super().button_cancel()
 
     # Campos para facturación electrónica DGII, mover cerca de itx_dgii_electronic_stamp_encoded    

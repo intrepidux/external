@@ -83,3 +83,22 @@ class TestEcfDraftLock(TransactionCase):
         })
         move.button_draft()
         self.assertEqual(move.state, 'draft')
+
+    def test_draft_bypass_with_group_and_reason(self):
+        move = self._create_posted_move()
+        self.env['itx.xml.data.dgii'].create({
+            'account_move_id': move.id,
+            'name': move.name,
+            'status': 'procesed',
+            'dgi_status': 'Aceptado',
+        })
+        group = self.env.ref('l10n_do_dgii_fe_base.group_ecf_draft_bypass')
+        self.env.user.write({'groups_id': [(4, group.id)]})
+        move.with_context(
+            ecf_draft_bypass=True,
+            ecf_draft_bypass_reason='Corrección NC de prueba',
+        ).button_draft()
+        self.assertEqual(move.state, 'draft')
+        self.assertTrue(
+            any('Omisión del bloqueo e-CF' in (m.body or '') for m in move.message_ids)
+        )

@@ -272,9 +272,13 @@ Para reportar problemas o solicitar mejoras, contactar al equipo de desarrollo.
 
 ## Versión
 
-15.0.0.7 — Bloqueo de **Restablecer a borrador** en e-CF ya enviados o con secuencia consumida (1209). Use E34/E33 para correcciones.
+15.0.0.8 — Bloqueo de borrador en e-CF enviados; omisión opcional con permiso, wizard y motivo en chatter.
 
 ## Changelog
+
+### 15.0.0.8
+- Grupo **Omitir bloqueo borrador e-CF** (incluido en Responsable de contabilidad): wizard con motivo obligatorio; auditoría en chatter.
+- Botón **Omitir bloqueo e-CF…** visible cuando `itx_ecf_lock_draft` y el usuario tiene el grupo.
 
 ### 15.0.0.7
 - `account.move`: `button_draft` / `button_cancel` bloqueados cuando existe envío DGII aceptado, en proceso, o rechazo 1209.

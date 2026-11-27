@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <record id="group_ecf_draft_bypass" model="res.groups">
+            <field name="name">Omitir bloqueo borrador e-CF (DGII)</field>
+            <field name="category_id" ref="base.module_category_accounting_accounting"/>
+            <field name="comment">
+                Permite restablecer a borrador o cancelar comprobantes ya enviados a DGII,
+                tras confirmación y motivo obligatorio (auditoría en chatter).
+            </field>
+        </record>
+        <record id="account.group_account_manager" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('l10n_do_dgii_fe_base.group_ecf_draft_bypass'))]"/>
+        </record>
+    </data>
+</odoo>

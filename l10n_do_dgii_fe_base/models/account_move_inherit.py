@@ -25,6 +25,34 @@ import datetime
 from .itx_xml_data_dgii import dgii_estado_classification
 
 
+def _ecf_xml_indicates_sequence_consumed(xml_rec):
+    """True if DGII rejected because the NCF sequence was already used (e.g. 1209)."""
+    blobs = []
+    for attr in ('dgi_err_msg', 'error', 'json_response'):
+        val = getattr(xml_rec, attr, None) or ''
+        if val:
+            blobs.append(str(val).lower())
+    joined = ' '.join(blobs)
+    if '1209' in joined:
+        return True
+    for phrase in (
+        'secuencia', 'número de factura', 'numero de factura', 'ya ha sido utiliz',
+        'already used', 'sequence',
+    ):
+        if phrase in joined and ('utiliz' in joined or 'used' in joined):
+            return True
+    return False
+
+
+def _ecf_xml_indicates_accepted(xml_rec):
+    label = (xml_rec.dgi_status or '').strip().lower().replace(' ', '')
+    if label and 'rechazado' in label:
+        return False
+    if label and 'aceptado' in label:
+        return True
+    return xml_rec.status == 'procesed' and not _ecf_xml_indicates_sequence_consumed(xml_rec)
+
+
 class AccountMove(models.Model):
     _inherit = 'account.move'
     _description = 'Herencia para editar el post de la factura dgii'
@@ -229,6 +257,77 @@ class AccountMove(models.Model):
         if moves:
             moves._compute_itx_dgii_estado_display()
         return True
+
+    itx_ecf_lock_draft = fields.Boolean(
+        string='Bloqueo borrador e-CF',
+        compute='_compute_itx_ecf_lock_draft',
+    )
+
+    def _ecf_dgii_xml_logs(self):
+        self.ensure_one()
+        logs = self.itx_xml_data_ids
+        if self.itx_xml_data_id and self.itx_xml_data_id not in logs:
+            logs |= self.itx_xml_data_id
+        return logs
+
+    def _ecf_dgii_is_locked_for_draft(self):
+        self.ensure_one()
+        if not (self.is_ecf_invoice and self.journal_id.is_dgii):
+            return False
+        for xml_rec in self._ecf_dgii_xml_logs():
+            if xml_rec.status not in ('sent', 'procesed', 'error_no_enviado'):
+                continue
+            if _ecf_xml_indicates_accepted(xml_rec):
+                return True
+            if _ecf_xml_indicates_sequence_consumed(xml_rec):
+                return True
+            label = (xml_rec.dgi_status or '').lower()
+            if xml_rec.status in ('sent', 'procesed') and (
+                'proceso' in label or 'pendiente' in label
+            ):
+                return True
+        return False
+
+    @api.depends(
+        'is_ecf_invoice',
+        'journal_id.is_dgii',
+        'itx_xml_data_ids.status',
+        'itx_xml_data_ids.dgi_status',
+        'itx_xml_data_id',
+    )
+    def _compute_itx_ecf_lock_draft(self):
+        for move in self:
+            move.itx_ecf_lock_draft = move._ecf_dgii_is_locked_for_draft()
+
+    def _ecf_dgii_raise_draft_lock_error(self):
+        raise UserError(_(
+            'Este comprobante electrónico (e-CF) ya fue enviado a la DGII. '
+            'No puede restablecerse a borrador ni cancelarse para volver a publicarlo. '
+            'Registre una nota de crédito (E34) o nota de débito (E33) según corresponda.'
+        ))
+
+    def button_draft(self):
+        locked = self.filtered(lambda m: m._ecf_dgii_is_locked_for_draft())
+        if locked:
+            locked[:1]._ecf_dgii_raise_draft_lock_error()
+        for move in self:
+            if (
+                move.is_ecf_invoice
+                and move.journal_id.is_dgii
+                and move._ecf_dgii_xml_logs()
+            ):
+                move.message_post(
+                    body=_(
+                        'Restablecido a borrador tras rechazo de contenido DGII (auditoría).'
+                    ),
+                )
+        return super().button_draft()
+
+    def button_cancel(self):
+        locked = self.filtered(lambda m: m._ecf_dgii_is_locked_for_draft())
+        if locked:
+            locked[:1]._ecf_dgii_raise_draft_lock_error()
+        return super().button_cancel()
 
     # Campos para facturación electrónica DGII, mover cerca de itx_dgii_electronic_stamp_encoded    
     l10n_do_ecf_security_code = fields.Char(string="e-CF Security Code", copy=False)

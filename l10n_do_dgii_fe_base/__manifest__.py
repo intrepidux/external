@@ -7,7 +7,7 @@
     'license': "OPL-1",
     'support': "soporte@intrepidux.com",
     'category': 'Localization',
-    'version': "15.0.0.6",
+    'version': "15.0.0.7",
     'installable': True,
     'application': False,
     'auto_install': False,
@@ -37,5 +37,5 @@
         
     ],
     # "post_init_hook": "post_init_hook",
-
+    'test': ['tests/test_ecf_draft_lock.py'],
 }

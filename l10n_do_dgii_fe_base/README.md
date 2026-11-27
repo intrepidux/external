@@ -272,4 +272,11 @@ Para reportar problemas o solicitar mejoras, contactar al equipo de desarrollo.
 
 ## Versión
 
-17.0.1.0.0
+15.0.0.7 — Bloqueo de **Restablecer a borrador** en e-CF ya enviados o con secuencia consumida (1209). Use E34/E33 para correcciones.
+
+## Changelog
+
+### 15.0.0.7
+- `account.move`: `button_draft` / `button_cancel` bloqueados cuando existe envío DGII aceptado, en proceso, o rechazo 1209.
+- Campo `itx_ecf_lock_draft` y ocultación del botón en formulario.
+- Tests `tests/test_ecf_draft_lock.py`.
